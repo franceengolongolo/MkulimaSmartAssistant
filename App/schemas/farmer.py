@@ -12,3 +12,9 @@ class FarmerResponse(BaseModel):
     jina: str
     simu: str
     eneo: str
+
+
+class FarmerUpdate(BaseModel):
+    jina: str
+    simu: str
+    eneo: str

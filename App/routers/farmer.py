@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from App.database.database import SessionLocal
 from App.database.models.farmer import Farmer
-from App.schemas.farmer import FarmerCreate
+from App.schemas.farmer import FarmerCreate, FarmerUpdate
 
 router = APIRouter(
     prefix="/farmers",
@@ -47,3 +47,24 @@ def get_farmer(farmer_id: int, db: Session = Depends(get_db)):
         }
 
     return farmer
+@router.put("/{farmer_id}")
+def update_farmer(
+    farmer_id: int,
+    farmer: FarmerUpdate,
+    db: Session = Depends(get_db)
+):
+    existing_farmer = db.query(Farmer).filter(Farmer.id == farmer_id).first()
+
+    if existing_farmer is None:
+        return {
+            "ujumbe": "Mkulima hakupatikana"
+        }
+
+    existing_farmer.jina = farmer.jina
+    existing_farmer.simu = farmer.simu
+    existing_farmer.eneo = farmer.eneo
+
+    db.commit()
+    db.refresh(existing_farmer)
+
+    return existing_farmer
