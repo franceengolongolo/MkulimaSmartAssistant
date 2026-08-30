@@ -37,3 +37,13 @@ def create_farmer(farmer: FarmerCreate, db: Session = Depends(get_db)):
     db.refresh(new_farmer)
 
     return new_farmer
+@router.get("/{farmer_id}")
+def get_farmer(farmer_id: int, db: Session = Depends(get_db)):
+    farmer = db.query(Farmer).filter(Farmer.id == farmer_id).first()
+
+    if farmer is None:
+        return {
+            "ujumbe": "Mkulima hakupatikana"
+        }
+
+    return farmer
