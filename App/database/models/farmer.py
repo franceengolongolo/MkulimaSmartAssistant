@@ -1,4 +1,6 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
+
 from App.database.database import Base
 
 
@@ -9,3 +11,5 @@ class Farmer(Base):
     jina = Column(String, nullable=False)
     simu = Column(String, unique=True, nullable=False)
     eneo = Column(String, nullable=True)
+
+    farms = relationship("Farm", back_populates="farmer")
