@@ -70,3 +70,18 @@ def update_crop(
     db.refresh(existing_crop)
 
     return existing_crop
+@router.delete("/{crop_id}")
+def delete_crop(crop_id: int, db: Session = Depends(get_db)):
+    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+
+    if crop is None:
+        return {
+            "ujumbe": "Zao halikupatikana"
+        }
+
+    db.delete(crop)
+    db.commit()
+
+    return {
+        "ujumbe": "Zao limefutwa kikamilifu"
+    }
