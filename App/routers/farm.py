@@ -70,3 +70,18 @@ def update_farm(
     db.refresh(existing_farm)
 
     return existing_farm
+@router.delete("/{farm_id}")
+def delete_farm(farm_id: int, db: Session = Depends(get_db)):
+    farm = db.query(Farm).filter(Farm.id == farm_id).first()
+
+    if farm is None:
+        return {
+            "ujumbe": "Shamba halikupatikana"
+        }
+
+    db.delete(farm)
+    db.commit()
+
+    return {
+        "ujumbe": "Shamba limefutwa kikamilifu"
+    }
