@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from App.database.database import SessionLocal
 from App.database.models.crop import Crop
 from App.database.models.schedule import Schedule
+from App.database.models.activity import Activity
 from App.schemas.crop import CropCreate
 
 router = APIRouter(
@@ -50,6 +51,28 @@ def get_crop(crop_id: int, db: Session = Depends(get_db)):
             "ujumbe": "Zao halikupatikana"
         }
 
+    return crop
+
+@router.get("/{crop_id}/activities")
+def get_crop_activities(
+    crop_id: int,
+    db: Session = Depends(get_db)
+):
+    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+
+    if crop is None:
+        return {
+            "ujumbe": "Zao halikupatikana"
+        }
+
+    activities = db.query(Activity).filter(
+        Activity.crop_id == crop_id
+    ).all()
+
+    return {
+        "zao": crop.jina,
+        "activities": activities
+    }
     return crop
 @router.get("/{crop_id}/schedule")
 def get_crop_schedule(
@@ -223,6 +246,45 @@ def get_upcoming_schedules(
         "zao": crop.jina,
         "tarehe_ya_leo": leo,
         "ratiba": ratiba_zijazo
+    }
+@router.get("/{crop_id}/summary")
+def get_crop_summary(
+    crop_id: int,
+    db: Session = Depends(get_db)
+):
+    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+
+    if crop is None:
+        return {
+            "ujumbe": "Zao halikupatikana"
+        }
+
+    activities = db.query(Activity).filter(
+        Activity.crop_id == crop_id
+    ).all()
+
+    jumla_ya_activities = len(activities)
+
+    zilizokamilika = len([
+        activity for activity in activities
+        if activity.hali == "imekamilika"
+    ])
+
+    ambazo_hazijakamilika = len([
+        activity for activity in activities
+        if activity.hali == "haijakamilika"
+    ])
+
+    return {
+        "zao": crop.jina,
+        "aina": crop.aina,
+        "msimu": crop.msimu,
+        "tarehe_ya_kupanda": crop.tarehe_ya_kupanda,
+        "activities": {
+            "jumla": jumla_ya_activities,
+            "zilizokamilika": zilizokamilika,
+            "ambazo_hazijakamilika": ambazo_hazijakamilika
+        }
     }
 @router.put("/{crop_id}")
 def update_crop(

@@ -30,11 +30,12 @@ def create_activity(
     db: Session = Depends(get_db)
 ):
     new_activity = Activity(
-        jina=activity.jina,
-        maelezo=activity.maelezo,
-        tarehe=activity.tarehe,
-        crop_id=activity.crop_id
-    )
+    jina=activity.jina,
+    maelezo=activity.maelezo,
+    tarehe=activity.tarehe,
+    hali=activity.hali,
+    crop_id=activity.crop_id
+)
 
     db.add(new_activity)
     db.commit()
@@ -69,12 +70,36 @@ def update_activity(
     existing_activity.jina = activity.jina
     existing_activity.maelezo = activity.maelezo
     existing_activity.tarehe = activity.tarehe
+    existing_activity.hali = activity.hali
     existing_activity.crop_id = activity.crop_id
 
     db.commit()
     db.refresh(existing_activity)
 
     return existing_activity
+@router.patch("/{activity_id}/complete")
+def complete_activity(
+    activity_id: int,
+    db: Session = Depends(get_db)
+):
+    activity = db.query(Activity).filter(
+        Activity.id == activity_id
+    ).first()
+
+    if activity is None:
+        return {
+            "ujumbe": "Shughuli haikupatikana"
+        }
+
+    activity.hali = "imekamilika"
+
+    db.commit()
+    db.refresh(activity)
+
+    return {
+        "ujumbe": "Shughuli imekamilika",
+        "activity": activity
+    }
 @router.delete("/{activity_id}")
 def delete_activity(activity_id: int, db: Session = Depends(get_db)):
     activity = db.query(Activity).filter(Activity.id == activity_id).first()
