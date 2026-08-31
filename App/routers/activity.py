@@ -75,3 +75,18 @@ def update_activity(
     db.refresh(existing_activity)
 
     return existing_activity
+@router.delete("/{activity_id}")
+def delete_activity(activity_id: int, db: Session = Depends(get_db)):
+    activity = db.query(Activity).filter(Activity.id == activity_id).first()
+
+    if activity is None:
+        return {
+            "ujumbe": "Shughuli haikupatikana"
+        }
+
+    db.delete(activity)
+    db.commit()
+
+    return {
+        "ujumbe": "Shughuli imefutwa kikamilifu"
+    }
