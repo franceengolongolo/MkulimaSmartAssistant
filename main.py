@@ -2,7 +2,6 @@ from fastapi import FastAPI
 
 from App.database.models.farmer import Farmer
 from App.database.models.farm import Farm
-from App.database.models.farm import Farm
 from App.database.models.crop import Crop
 from App.database.models.activity import Activity
 

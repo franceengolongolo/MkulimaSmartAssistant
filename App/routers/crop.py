@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from datetime import date, timedelta
 
 from App.database.database import SessionLocal
 from App.database.models.crop import Crop
@@ -86,6 +87,47 @@ def get_crop_schedule(
         "zao": crop.jina,
         "tarehe_ya_kupanda": crop.tarehe_ya_kupanda,
         "ratiba": ratiba
+    }
+@router.get("/{crop_id}/schedule/today")
+def get_today_schedule(
+    crop_id: int,
+    db: Session = Depends(get_db)
+):
+    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+
+    if crop is None:
+        return {
+            "ujumbe": "Zao halikupatikana"
+        }
+
+    if crop.tarehe_ya_kupanda is None:
+        return {
+            "ujumbe": "Tarehe ya kupanda haijawekwa"
+        }
+
+    schedules = db.query(Schedule).filter(
+        Schedule.crop_id == crop_id
+    ).all()
+
+    leo = date.today()
+    ratiba_ya_leo = []
+
+    for schedule in schedules:
+        tarehe = crop.tarehe_ya_kupanda + timedelta(days=schedule.siku)
+
+        if tarehe == leo:
+            ratiba_ya_leo.append({
+                "jina": schedule.jina,
+                "siku": schedule.siku,
+                "tarehe": tarehe,
+                "maelezo": schedule.maelezo
+            })
+
+    return {
+        "zao": crop.jina,
+        "tarehe_ya_kupanda": crop.tarehe_ya_kupanda,
+        "tarehe_ya_leo": leo,
+        "ratiba": ratiba_ya_leo
     }
 @router.put("/{crop_id}")
 def update_crop(
