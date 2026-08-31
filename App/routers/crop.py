@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from App.database.database import SessionLocal
 from App.database.models.crop import Crop
+from App.database.models.schedule import Schedule
 from App.schemas.crop import CropCreate
 
 router = APIRouter(
@@ -49,6 +50,43 @@ def get_crop(crop_id: int, db: Session = Depends(get_db)):
         }
 
     return crop
+@router.get("/{crop_id}/schedule")
+def get_crop_schedule(
+    crop_id: int,
+    db: Session = Depends(get_db)
+):
+    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+
+    if crop is None:
+        return {
+            "ujumbe": "Zao halikupatikana"
+        }
+
+    schedules = db.query(Schedule).filter(
+        Schedule.crop_id == crop_id
+    ).all()
+
+    ratiba = []
+
+    for schedule in schedules:
+        tarehe = None
+
+        if crop.tarehe_ya_kupanda:
+            from datetime import timedelta
+            tarehe = crop.tarehe_ya_kupanda + timedelta(days=schedule.siku)
+
+        ratiba.append({
+            "jina": schedule.jina,
+            "siku": schedule.siku,
+            "tarehe": tarehe,
+            "maelezo": schedule.maelezo
+        })
+
+    return {
+        "zao": crop.jina,
+        "tarehe_ya_kupanda": crop.tarehe_ya_kupanda,
+        "ratiba": ratiba
+    }
 @router.put("/{crop_id}")
 def update_crop(
     crop_id: int,
