@@ -15,3 +15,4 @@ class Crop(Base):
     farm_id = Column(Integer, ForeignKey("farms.id"), nullable=False)
 
     farm = relationship("Farm", back_populates="crops")
+    activities = relationship("Activity", back_populates="crop")
