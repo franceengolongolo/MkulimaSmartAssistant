@@ -16,3 +16,4 @@ class Crop(Base):
 
     farm = relationship("Farm", back_populates="crops")
     activities = relationship("Activity", back_populates="crop")
+    schedules = relationship("Schedule", back_populates="crop")
