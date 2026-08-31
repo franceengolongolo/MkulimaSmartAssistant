@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Date
 from sqlalchemy.orm import relationship
 
 from App.database.database import Base
@@ -11,6 +11,7 @@ class Crop(Base):
     jina = Column(String, nullable=False)
     aina = Column(String, nullable=False)
     msimu = Column(String, nullable=True)
+    tarehe_ya_kupanda = Column(Date, nullable=True)
 
     farm_id = Column(Integer, ForeignKey("farms.id"), nullable=False)
 

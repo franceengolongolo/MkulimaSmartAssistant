@@ -27,11 +27,12 @@ def get_crops(db: Session = Depends(get_db)):
 @router.post("/")
 def create_crop(crop: CropCreate, db: Session = Depends(get_db)):
     new_crop = Crop(
-        jina=crop.jina,
-        aina=crop.aina,
-        msimu=crop.msimu,
-        farm_id=crop.farm_id
-    )
+    jina=crop.jina,
+    aina=crop.aina,
+    msimu=crop.msimu,
+    farm_id=crop.farm_id,
+    tarehe_ya_kupanda=crop.tarehe_ya_kupanda
+)
 
     db.add(new_crop)
     db.commit()
@@ -65,6 +66,7 @@ def update_crop(
     existing_crop.aina = crop.aina
     existing_crop.msimu = crop.msimu
     existing_crop.farm_id = crop.farm_id
+    existing_crop.tarehe_ya_kupanda = crop.tarehe_ya_kupanda
 
     db.commit()
     db.refresh(existing_crop)
