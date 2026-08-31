@@ -179,6 +179,51 @@ def get_next_schedule(
         "tarehe_ya_leo": leo,
         "ratiba_inayofuata": ratiba_zijazo[0]
     }
+@router.get("/{crop_id}/upcoming-schedules")
+def get_upcoming_schedules(
+    crop_id: int,
+    db: Session = Depends(get_db)
+):
+    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+
+    if crop is None:
+        return {
+            "ujumbe": "Zao halikupatikana"
+        }
+
+    if crop.tarehe_ya_kupanda is None:
+        return {
+            "ujumbe": "Tarehe ya kupanda haijawekwa"
+        }
+
+    schedules = db.query(Schedule).filter(
+        Schedule.crop_id == crop_id
+    ).all()
+
+    leo = date.today()
+    ratiba_zijazo = []
+
+    for schedule in schedules:
+        tarehe = crop.tarehe_ya_kupanda + timedelta(days=schedule.siku)
+
+        if tarehe >= leo:
+            siku_zimebaki = (tarehe - leo).days
+
+            ratiba_zijazo.append({
+                "jina": schedule.jina,
+                "siku": schedule.siku,
+                "tarehe": tarehe,
+                "siku_zimebaki": siku_zimebaki,
+                "maelezo": schedule.maelezo
+            })
+
+    ratiba_zijazo.sort(key=lambda x: x["tarehe"])
+
+    return {
+        "zao": crop.jina,
+        "tarehe_ya_leo": leo,
+        "ratiba": ratiba_zijazo
+    }
 @router.put("/{crop_id}")
 def update_crop(
     crop_id: int,
