@@ -7,6 +7,7 @@ from App.database.models.crop import Crop
 from App.database.models.schedule import Schedule
 from App.database.models.activity import Activity
 from App.schemas.crop import CropCreate
+from App.schemas.dashboard import CropDashboard
 
 router = APIRouter(
     prefix="/crops",
@@ -284,6 +285,79 @@ def get_crop_summary(
             "jumla": jumla_ya_activities,
             "zilizokamilika": zilizokamilika,
             "ambazo_hazijakamilika": ambazo_hazijakamilika
+        }
+    }
+@router.get("/{crop_id}/dashboard", response_model=CropDashboard)
+def get_crop_dashboard(
+    crop_id: int,
+    db: Session = Depends(get_db)
+):
+    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+
+    if crop is None:
+        return {
+            "ujumbe": "Zao halikupatikana"
+        }
+
+    activities = db.query(Activity).filter(
+        Activity.crop_id == crop_id
+    ).all()
+
+    jumla_ya_activities = len(activities)
+
+    zilizokamilika = len([
+        activity for activity in activities
+        if activity.hali == "imekamilika"
+    ])
+
+    ambazo_hazijakamilika = len([
+        activity for activity in activities
+        if activity.hali == "haijakamilika"
+    ])
+
+    ratiba = db.query(Schedule).filter(
+        Schedule.crop_id == crop_id
+    ).all()
+
+    leo = date.today()
+    ratiba_zijazo = []
+
+    if crop.tarehe_ya_kupanda:
+        for schedule in ratiba:
+            tarehe = crop.tarehe_ya_kupanda + timedelta(
+                days=schedule.siku
+            )
+
+            if tarehe >= leo:
+                siku_zimebaki = (tarehe - leo).days
+
+                ratiba_zijazo.append({
+                    "jina": schedule.jina,
+                    "siku": schedule.siku,
+                    "tarehe": tarehe,
+                    "siku_zimebaki": siku_zimebaki,
+                    "maelezo": schedule.maelezo
+                })
+
+    ratiba_zijazo.sort(key=lambda x: x["tarehe"])
+
+    return {
+        "zao": {
+            "jina": crop.jina,
+            "aina": crop.aina,
+            "msimu": crop.msimu,
+            "tarehe_ya_kupanda": crop.tarehe_ya_kupanda
+        },
+
+        "activities": {
+            "jumla": jumla_ya_activities,
+            "zilizokamilika": zilizokamilika,
+            "ambazo_hazijakamilika": ambazo_hazijakamilika
+        },
+
+        "ratiba": {
+            "inayofuata": ratiba_zijazo[0] if ratiba_zijazo else None,
+            "zijazo": ratiba_zijazo
         }
     }
 @router.put("/{crop_id}")
