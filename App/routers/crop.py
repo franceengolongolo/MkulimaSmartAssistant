@@ -100,13 +100,20 @@ def get_crop_schedule(
             from datetime import timedelta
             tarehe = crop.tarehe_ya_kupanda + timedelta(days=schedule.siku)
 
+        if tarehe == date.today():
+            status = "leo"
+        elif tarehe > date.today():
+            status = "inayofuata"
+        else:
+            status = "imepita"
+
         ratiba.append({
             "jina": schedule.jina,
             "siku": schedule.siku,
             "tarehe": tarehe,
+            "status": status,
             "maelezo": schedule.maelezo
         })
-
     return {
         "zao": crop.jina,
         "tarehe_ya_kupanda": crop.tarehe_ya_kupanda,
@@ -144,6 +151,7 @@ def get_today_schedule(
                 "jina": schedule.jina,
                 "siku": schedule.siku,
                 "tarehe": tarehe,
+                "status": "leo",
                 "maelezo": schedule.maelezo
             })
 
@@ -180,16 +188,22 @@ def get_next_schedule(
     for schedule in schedules:
         tarehe = crop.tarehe_ya_kupanda + timedelta(days=schedule.siku)
 
-        if tarehe >= leo:
-            siku_zimebaki = (tarehe - leo).days
+    if tarehe >= leo:
+        siku_zimebaki = (tarehe - leo).days
 
-            ratiba_zijazo.append({
-                "jina": schedule.jina,
-                "siku": schedule.siku,
-                "tarehe": tarehe,
-                "siku_zimebaki": siku_zimebaki,
-                "maelezo": schedule.maelezo
-            })
+        if tarehe == leo:
+            status = "leo"
+        else:
+            status = "inayofuata"
+
+        ratiba_zijazo.append({
+            "jina": schedule.jina,
+            "siku": schedule.siku,
+            "tarehe": tarehe,
+            "siku_zimebaki": siku_zimebaki,
+            "status": status,
+            "maelezo": schedule.maelezo
+        })
 
     if not ratiba_zijazo:
         return {
@@ -233,11 +247,17 @@ def get_upcoming_schedules(
         if tarehe >= leo:
             siku_zimebaki = (tarehe - leo).days
 
+            if tarehe == leo:
+                status = "leo"
+            else:
+                status = "inayofuata"
+
             ratiba_zijazo.append({
                 "jina": schedule.jina,
                 "siku": schedule.siku,
                 "tarehe": tarehe,
                 "siku_zimebaki": siku_zimebaki,
+                "status": status,
                 "maelezo": schedule.maelezo
             })
 
@@ -288,10 +308,7 @@ def get_crop_summary(
         }
     }
 @router.get("/{crop_id}/dashboard", response_model=CropDashboard)
-def get_crop_dashboard(
-    crop_id: int,
-    db: Session = Depends(get_db)
-):
+def get_crop_dashboard(crop_id: int, db: Session = Depends(get_db)):
     crop = db.query(Crop).filter(Crop.id == crop_id).first()
 
     if crop is None:
@@ -320,6 +337,7 @@ def get_crop_dashboard(
     ).all()
 
     leo = date.today()
+
     ratiba_zijazo = []
 
     if crop.tarehe_ya_kupanda:
@@ -328,18 +346,22 @@ def get_crop_dashboard(
                 days=schedule.siku
             )
 
-            if tarehe >= leo:
+            if tarehe >= leo and schedule.status != "imekamilika":
                 siku_zimebaki = (tarehe - leo).days
 
                 ratiba_zijazo.append({
+                    "zao": crop.jina,
                     "jina": schedule.jina,
                     "siku": schedule.siku,
                     "tarehe": tarehe,
                     "siku_zimebaki": siku_zimebaki,
+                    "status": schedule.status,
                     "maelezo": schedule.maelezo
                 })
 
-    ratiba_zijazo.sort(key=lambda x: x["tarehe"])
+    ratiba_zijazo.sort(
+        key=lambda x: x["tarehe"]
+    )
 
     return {
         "zao": {
@@ -348,13 +370,11 @@ def get_crop_dashboard(
             "msimu": crop.msimu,
             "tarehe_ya_kupanda": crop.tarehe_ya_kupanda
         },
-
         "activities": {
             "jumla": jumla_ya_activities,
             "zilizokamilika": zilizokamilika,
             "ambazo_hazijakamilika": ambazo_hazijakamilika
         },
-
         "ratiba": {
             "inayofuata": ratiba_zijazo[0] if ratiba_zijazo else None,
             "zijazo": ratiba_zijazo
