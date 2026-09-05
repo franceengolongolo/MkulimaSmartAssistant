@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import date
+from App.schemas.crop import CropReminder
 
 
 # =========================
@@ -38,6 +39,7 @@ class CropDashboard(BaseModel):
     zao: ZaoDashboard
     activities: ActivitySummary
     ratiba: RatibaDashboard
+    reminders: list[CropReminder]
 
 
 # =========================
@@ -67,3 +69,4 @@ class FarmDashboard(BaseModel):
     activities: ActivitySummary
     ratiba: RatibaDashboard
     ratiba_ya_leo: list[RatibaItem]
+    reminders: list[CropReminder]

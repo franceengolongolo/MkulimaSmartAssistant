@@ -6,6 +6,7 @@ from App.database.database import SessionLocal
 from App.database.models.schedule import Schedule
 from App.database.models.crop import Crop
 from App.schemas.schedule import ScheduleCreate
+from App.services.reminder_service import create_reminder_from_schedule
 
 
 router = APIRouter(
@@ -70,26 +71,6 @@ def complete_schedule(schedule_id: int, db: Session = Depends(get_db)):
         "ujumbe": "Ratiba imekamilika",
         "ratiba": schedule
     }
-@router.patch("/{schedule_id}/complete")
-def complete_schedule(schedule_id: int, db: Session = Depends(get_db)):
-    schedule = db.query(Schedule).filter(
-        Schedule.id == schedule_id
-    ).first()
-
-    if schedule is None:
-        return {
-            "ujumbe": "Ratiba haikupatikana"
-        }
-
-    schedule.status = "imekamilika"
-
-    db.commit()
-    db.refresh(schedule)
-
-    return {
-        "ujumbe": "Ratiba imekamilika",
-        "ratiba": schedule
-    }
 
 
 @router.get("/")
@@ -112,6 +93,23 @@ def create_schedule(
     db.add(new_schedule)
     db.commit()
     db.refresh(new_schedule)
+
+    crop = db.query(Crop).filter(
+        Crop.id == schedule.crop_id
+    ).first()
+
+    if crop and crop.tarehe_ya_kupanda:
+        tarehe_reminder = (
+            crop.tarehe_ya_kupanda
+            + timedelta(days=schedule.siku)
+        )
+
+        create_reminder_from_schedule(
+            db=db,
+            ujumbe=schedule.jina,
+            tarehe=tarehe_reminder,
+            crop_id=schedule.crop_id
+        )
 
     return new_schedule
 @router.get("/{schedule_id}")

@@ -12,6 +12,8 @@ from App.routers.farm import router as farm_router
 from App.routers.crop import router as crop_router
 from App.routers.activity import router as activity_router
 from App.routers.schedule import router as schedule_router
+from App.database.models.reminder import Reminder
+from App.routers.reminder import router as reminder_router
 
 app = FastAPI()
 
@@ -22,6 +24,7 @@ app.include_router(farm_router)
 app.include_router(crop_router)
 app.include_router(activity_router)
 app.include_router(schedule_router)
+app.include_router(reminder_router)
 
 
 @app.get("/")

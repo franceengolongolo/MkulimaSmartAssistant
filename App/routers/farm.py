@@ -7,6 +7,7 @@ from App.schemas.farm import FarmCreate
 from App.schemas.dashboard import FarmDashboard
 from datetime import date, timedelta
 from App.database.models.schedule import Schedule
+from App.database.models.reminder import Reminder
 
 router = APIRouter(
     prefix="/farms",
@@ -135,6 +136,7 @@ def get_farm_dashboard(farm_id: int, db: Session = Depends(get_db)):
     leo = date.today()
     ratiba_zijazo = []
     ratiba_ya_leo = []
+    reminders = []
 
     for crop in crops:
         if crop.tarehe_ya_kupanda:
@@ -171,6 +173,14 @@ def get_farm_dashboard(farm_id: int, db: Session = Depends(get_db)):
                         "maelezo": schedule.maelezo
                     })
     ratiba_zijazo.sort(key=lambda x: x["tarehe"])
+
+    for crop in crops:
+        crop_reminders = db.query(Reminder).filter(
+            Reminder.crop_id == crop.id
+        ).all()
+
+        reminders.extend(crop_reminders)
+
     return {
         "shamba": {
             "jina": farm.jina,
@@ -186,9 +196,10 @@ def get_farm_dashboard(farm_id: int, db: Session = Depends(get_db)):
             "zilizokamilika": zilizokamilika,
             "ambazo_hazijakamilika": ambazo_hazijakamilika
         },
-                "ratiba": {
+        "ratiba": {
             "inayofuata": ratiba_zijazo[0] if ratiba_zijazo else None,
             "zijazo": ratiba_zijazo
         },
-        "ratiba_ya_leo": ratiba_ya_leo
+        "ratiba_ya_leo": ratiba_ya_leo,
+        "reminders": reminders
     }

@@ -8,6 +8,7 @@ from App.database.models.schedule import Schedule
 from App.database.models.activity import Activity
 from App.schemas.crop import CropCreate
 from App.schemas.dashboard import CropDashboard
+from App.database.models.reminder import Reminder
 
 router = APIRouter(
     prefix="/crops",
@@ -308,8 +309,13 @@ def get_crop_summary(
         }
     }
 @router.get("/{crop_id}/dashboard", response_model=CropDashboard)
-def get_crop_dashboard(crop_id: int, db: Session = Depends(get_db)):
-    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+def get_crop_dashboard(
+    crop_id: int,
+    db: Session = Depends(get_db)
+):
+    crop = db.query(Crop).filter(
+        Crop.id == crop_id
+    ).first()
 
     if crop is None:
         return {
@@ -334,6 +340,10 @@ def get_crop_dashboard(crop_id: int, db: Session = Depends(get_db)):
 
     ratiba = db.query(Schedule).filter(
         Schedule.crop_id == crop_id
+    ).all()
+
+    reminders = db.query(Reminder).filter(
+        Reminder.crop_id == crop_id
     ).all()
 
     leo = date.today()
@@ -378,8 +388,10 @@ def get_crop_dashboard(crop_id: int, db: Session = Depends(get_db)):
         "ratiba": {
             "inayofuata": ratiba_zijazo[0] if ratiba_zijazo else None,
             "zijazo": ratiba_zijazo
-        }
+        },
+        "reminders": reminders
     }
+
 @router.put("/{crop_id}")
 def update_crop(
     crop_id: int,
