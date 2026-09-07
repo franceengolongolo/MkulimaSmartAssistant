@@ -13,7 +13,9 @@ from App.routers.crop import router as crop_router
 from App.routers.activity import router as activity_router
 from App.routers.schedule import router as schedule_router
 from App.database.models.reminder import Reminder
+from App.database.models.otp import OTPVerification
 from App.routers.reminder import router as reminder_router
+from App.routers.auth import router as auth_router
 
 app = FastAPI()
 
@@ -25,6 +27,7 @@ app.include_router(crop_router)
 app.include_router(activity_router)
 app.include_router(schedule_router)
 app.include_router(reminder_router)
+app.include_router(auth_router)
 
 
 @app.get("/")

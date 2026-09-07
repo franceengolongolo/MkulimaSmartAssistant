@@ -8,6 +8,7 @@ from App.schemas.dashboard import FarmDashboard
 from datetime import date, timedelta
 from App.database.models.schedule import Schedule
 from App.database.models.reminder import Reminder
+from App.services.auth_service import get_current_farmer
 
 router = APIRouter(
     prefix="/farms",
@@ -24,17 +25,26 @@ def get_db():
 
 
 @router.get("/")
-def get_farms(db: Session = Depends(get_db)):
-    return db.query(Farm).all()
+def get_farms(
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    return db.query(Farm).filter(
+        Farm.farmer_id == current_farmer_id
+    ).all()
 
 
 @router.post("/")
-def create_farm(farm: FarmCreate, db: Session = Depends(get_db)):
+def create_farm(
+    farm: FarmCreate,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
     new_farm = Farm(
         jina=farm.jina,
         eneo=farm.eneo,
         ukubwa=farm.ukubwa,
-        farmer_id=farm.farmer_id
+        farmer_id=current_farmer_id
     )
 
     db.add(new_farm)
@@ -42,9 +52,18 @@ def create_farm(farm: FarmCreate, db: Session = Depends(get_db)):
     db.refresh(new_farm)
 
     return new_farm
+
+
 @router.get("/{farm_id}")
-def get_farm(farm_id: int, db: Session = Depends(get_db)):
-    farm = db.query(Farm).filter(Farm.id == farm_id).first()
+def get_farm(
+    farm_id: int,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    farm = db.query(Farm).filter(
+        Farm.id == farm_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if farm is None:
         return {
@@ -52,13 +71,19 @@ def get_farm(farm_id: int, db: Session = Depends(get_db)):
         }
 
     return farm
+
+
 @router.put("/{farm_id}")
 def update_farm(
     farm_id: int,
     farm: FarmCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
 ):
-    existing_farm = db.query(Farm).filter(Farm.id == farm_id).first()
+    existing_farm = db.query(Farm).filter(
+        Farm.id == farm_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if existing_farm is None:
         return {
@@ -68,15 +93,23 @@ def update_farm(
     existing_farm.jina = farm.jina
     existing_farm.eneo = farm.eneo
     existing_farm.ukubwa = farm.ukubwa
-    existing_farm.farmer_id = farm.farmer_id
 
     db.commit()
     db.refresh(existing_farm)
 
     return existing_farm
+
+
 @router.delete("/{farm_id}")
-def delete_farm(farm_id: int, db: Session = Depends(get_db)):
-    farm = db.query(Farm).filter(Farm.id == farm_id).first()
+def delete_farm(
+    farm_id: int,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    farm = db.query(Farm).filter(
+        Farm.id == farm_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if farm is None:
         return {
@@ -89,9 +122,18 @@ def delete_farm(farm_id: int, db: Session = Depends(get_db)):
     return {
         "ujumbe": "Shamba limefutwa kikamilifu"
     }
+
+
 @router.get("/{farm_id}/dashboard", response_model=FarmDashboard)
-def get_farm_dashboard(farm_id: int, db: Session = Depends(get_db)):
-    farm = db.query(Farm).filter(Farm.id == farm_id).first()
+def get_farm_dashboard(
+    farm_id: int,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    farm = db.query(Farm).filter(
+        Farm.id == farm_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if farm is None:
         return {

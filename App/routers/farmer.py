@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from App.database.database import SessionLocal
 from App.database.models.farmer import Farmer
 from App.schemas.farmer import FarmerCreate, FarmerUpdate
+from App.services.auth_service import get_current_farmer
 
 router = APIRouter(
     prefix="/farmers",
@@ -38,8 +39,19 @@ def create_farmer(farmer: FarmerCreate, db: Session = Depends(get_db)):
 
     return new_farmer
 @router.get("/{farmer_id}")
-def get_farmer(farmer_id: int, db: Session = Depends(get_db)):
-    farmer = db.query(Farmer).filter(Farmer.id == farmer_id).first()
+def get_farmer(
+    farmer_id: int,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    if farmer_id != current_farmer_id:
+        return {
+            "ujumbe": "Huruhusiwi kuona taarifa za mkulima mwingine."
+        }
+
+    farmer = db.query(Farmer).filter(
+        Farmer.id == farmer_id
+    ).first()
 
     if farmer is None:
         return {

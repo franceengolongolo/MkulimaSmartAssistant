@@ -7,11 +7,21 @@ from App.database.database import Base
 class Reminder(Base):
     __tablename__ = "reminders"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
 
-    ujumbe = Column(String, nullable=False)
+    ujumbe = Column(
+        String,
+        nullable=False
+    )
 
-    tarehe = Column(Date, nullable=False)
+    tarehe = Column(
+        Date,
+        nullable=False
+    )
 
     hali = Column(
         String,
@@ -25,7 +35,21 @@ class Reminder(Base):
         nullable=False
     )
 
+    schedule_id = Column(
+        Integer,
+        ForeignKey("schedules.id"),
+        nullable=True,
+        unique=True
+    )
+
+    # Relationship na Crop
     crop = relationship(
         "Crop",
         back_populates="reminders"
+    )
+
+    # Relationship na Schedule
+    schedule = relationship(
+        "Schedule",
+        back_populates="reminder"
     )

@@ -10,6 +10,8 @@ from App.database.models.farm import Farm
 from App.database.models.farmer import Farmer
 from App.database.models.activity import Activity
 from App.database.models.schedule import Schedule
+from App.database.models.otp import OTPVerification
+from App.database.models.reminder import Reminder
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -24,7 +26,9 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+
 target_metadata = Base.metadata
+
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

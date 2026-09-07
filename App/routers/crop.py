@@ -4,11 +4,14 @@ from datetime import date, timedelta
 
 from App.database.database import SessionLocal
 from App.database.models.crop import Crop
+from App.database.models.farm import Farm
 from App.database.models.schedule import Schedule
 from App.database.models.activity import Activity
+from App.database.models.reminder import Reminder
 from App.schemas.crop import CropCreate
 from App.schemas.dashboard import CropDashboard
-from App.database.models.reminder import Reminder
+from App.services.auth_service import get_current_farmer
+
 
 router = APIRouter(
     prefix="/crops",
@@ -24,29 +27,75 @@ def get_db():
         db.close()
 
 
-@router.get("/")
-def get_crops(db: Session = Depends(get_db)):
-    return db.query(Crop).all()
+# =========================================================
+# GET ALL CROPS - FARMER WAKE TU
+# =========================================================
 
+@router.get("/")
+def get_crops(
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    crops = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Farm.farmer_id == current_farmer_id
+    ).all()
+
+    return crops
+
+
+# =========================================================
+# CREATE CROP - FARMER HAWEZI KUTUMIA FARM YA MTU MWINGINE
+# =========================================================
 
 @router.post("/")
-def create_crop(crop: CropCreate, db: Session = Depends(get_db)):
+def create_crop(
+    crop: CropCreate,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    farm = db.query(Farm).filter(
+        Farm.id == crop.farm_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
+
+    if farm is None:
+        return {
+            "ujumbe": "Huwezi kuongeza zao kwenye shamba ambalo si lako"
+        }
+
     new_crop = Crop(
-    jina=crop.jina,
-    aina=crop.aina,
-    msimu=crop.msimu,
-    farm_id=crop.farm_id,
-    tarehe_ya_kupanda=crop.tarehe_ya_kupanda
-)
+        jina=crop.jina,
+        aina=crop.aina,
+        msimu=crop.msimu,
+        farm_id=crop.farm_id,
+        tarehe_ya_kupanda=crop.tarehe_ya_kupanda
+    )
 
     db.add(new_crop)
     db.commit()
     db.refresh(new_crop)
 
     return new_crop
+
+
+# =========================================================
+# GET SINGLE CROP - FARMER WAKE TU
+# =========================================================
+
 @router.get("/{crop_id}")
-def get_crop(crop_id: int, db: Session = Depends(get_db)):
-    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+def get_crop(
+    crop_id: int,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if crop is None:
         return {
@@ -55,12 +104,23 @@ def get_crop(crop_id: int, db: Session = Depends(get_db)):
 
     return crop
 
+
+# =========================================================
+# GET CROP ACTIVITIES
+# =========================================================
+
 @router.get("/{crop_id}/activities")
 def get_crop_activities(
     crop_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if crop is None:
         return {
@@ -75,13 +135,24 @@ def get_crop_activities(
         "zao": crop.jina,
         "activities": activities
     }
-    return crop
+
+
+# =========================================================
+# GET CROP SCHEDULE
+# =========================================================
+
 @router.get("/{crop_id}/schedule")
 def get_crop_schedule(
     crop_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if crop is None:
         return {
@@ -98,12 +169,13 @@ def get_crop_schedule(
         tarehe = None
 
         if crop.tarehe_ya_kupanda:
-            from datetime import timedelta
-            tarehe = crop.tarehe_ya_kupanda + timedelta(days=schedule.siku)
+            tarehe = crop.tarehe_ya_kupanda + timedelta(
+                days=schedule.siku
+            )
 
         if tarehe == date.today():
             status = "leo"
-        elif tarehe > date.today():
+        elif tarehe and tarehe > date.today():
             status = "inayofuata"
         else:
             status = "imepita"
@@ -115,17 +187,30 @@ def get_crop_schedule(
             "status": status,
             "maelezo": schedule.maelezo
         })
+
     return {
         "zao": crop.jina,
         "tarehe_ya_kupanda": crop.tarehe_ya_kupanda,
         "ratiba": ratiba
     }
+
+
+# =========================================================
+# GET TODAY SCHEDULE
+# =========================================================
+
 @router.get("/{crop_id}/schedule/today")
 def get_today_schedule(
     crop_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if crop is None:
         return {
@@ -145,7 +230,9 @@ def get_today_schedule(
     ratiba_ya_leo = []
 
     for schedule in schedules:
-        tarehe = crop.tarehe_ya_kupanda + timedelta(days=schedule.siku)
+        tarehe = crop.tarehe_ya_kupanda + timedelta(
+            days=schedule.siku
+        )
 
         if tarehe == leo:
             ratiba_ya_leo.append({
@@ -162,12 +249,24 @@ def get_today_schedule(
         "tarehe_ya_leo": leo,
         "ratiba": ratiba_ya_leo
     }
+
+
+# =========================================================
+# GET NEXT SCHEDULE
+# =========================================================
+
 @router.get("/{crop_id}/schedule/next")
 def get_next_schedule(
     crop_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if crop is None:
         return {
@@ -187,65 +286,11 @@ def get_next_schedule(
     ratiba_zijazo = []
 
     for schedule in schedules:
-        tarehe = crop.tarehe_ya_kupanda + timedelta(days=schedule.siku)
+        tarehe = crop.tarehe_ya_kupanda + timedelta(
+            days=schedule.siku
+        )
 
-    if tarehe >= leo:
-        siku_zimebaki = (tarehe - leo).days
-
-        if tarehe == leo:
-            status = "leo"
-        else:
-            status = "inayofuata"
-
-        ratiba_zijazo.append({
-            "jina": schedule.jina,
-            "siku": schedule.siku,
-            "tarehe": tarehe,
-            "siku_zimebaki": siku_zimebaki,
-            "status": status,
-            "maelezo": schedule.maelezo
-        })
-
-    if not ratiba_zijazo:
-        return {
-            "ujumbe": "Hakuna ratiba inayofuata"
-        }
-
-    ratiba_zijazo.sort(key=lambda x: x["tarehe"])
-
-    return {
-        "zao": crop.jina,
-        "tarehe_ya_leo": leo,
-        "ratiba_inayofuata": ratiba_zijazo[0]
-    }
-@router.get("/{crop_id}/upcoming-schedules")
-def get_upcoming_schedules(
-    crop_id: int,
-    db: Session = Depends(get_db)
-):
-    crop = db.query(Crop).filter(Crop.id == crop_id).first()
-
-    if crop is None:
-        return {
-            "ujumbe": "Zao halikupatikana"
-        }
-
-    if crop.tarehe_ya_kupanda is None:
-        return {
-            "ujumbe": "Tarehe ya kupanda haijawekwa"
-        }
-
-    schedules = db.query(Schedule).filter(
-        Schedule.crop_id == crop_id
-    ).all()
-
-    leo = date.today()
-    ratiba_zijazo = []
-
-    for schedule in schedules:
-        tarehe = crop.tarehe_ya_kupanda + timedelta(days=schedule.siku)
-
-        if tarehe >= leo:
+        if tarehe >= leo and schedule.status != "imekamilika":
             siku_zimebaki = (tarehe - leo).days
 
             if tarehe == leo:
@@ -262,19 +307,105 @@ def get_upcoming_schedules(
                 "maelezo": schedule.maelezo
             })
 
-    ratiba_zijazo.sort(key=lambda x: x["tarehe"])
+    if not ratiba_zijazo:
+        return {
+            "ujumbe": "Hakuna ratiba inayofuata"
+        }
+
+    ratiba_zijazo.sort(
+        key=lambda x: x["tarehe"]
+    )
+
+    return {
+        "zao": crop.jina,
+        "tarehe_ya_leo": leo,
+        "ratiba_inayofuata": ratiba_zijazo[0]
+    }
+
+
+# =========================================================
+# GET UPCOMING SCHEDULES
+# =========================================================
+
+@router.get("/{crop_id}/upcoming-schedules")
+def get_upcoming_schedules(
+    crop_id: int,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
+
+    if crop is None:
+        return {
+            "ujumbe": "Zao halikupatikana"
+        }
+
+    if crop.tarehe_ya_kupanda is None:
+        return {
+            "ujumbe": "Tarehe ya kupanda haijawekwa"
+        }
+
+    schedules = db.query(Schedule).filter(
+        Schedule.crop_id == crop_id
+    ).all()
+
+    leo = date.today()
+    ratiba_zijazo = []
+
+    for schedule in schedules:
+        tarehe = crop.tarehe_ya_kupanda + timedelta(
+            days=schedule.siku
+        )
+
+        if tarehe >= leo and schedule.status != "imekamilika":
+            siku_zimebaki = (tarehe - leo).days
+
+            if tarehe == leo:
+                status = "leo"
+            else:
+                status = "inayofuata"
+
+            ratiba_zijazo.append({
+                "jina": schedule.jina,
+                "siku": schedule.siku,
+                "tarehe": tarehe,
+                "siku_zimebaki": siku_zimebaki,
+                "status": status,
+                "maelezo": schedule.maelezo
+            })
+
+    ratiba_zijazo.sort(
+        key=lambda x: x["tarehe"]
+    )
 
     return {
         "zao": crop.jina,
         "tarehe_ya_leo": leo,
         "ratiba": ratiba_zijazo
     }
+
+
+# =========================================================
+# CROP SUMMARY
+# =========================================================
+
 @router.get("/{crop_id}/summary")
 def get_crop_summary(
     crop_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if crop is None:
         return {
@@ -308,13 +439,23 @@ def get_crop_summary(
             "ambazo_hazijakamilika": ambazo_hazijakamilika
         }
     }
+
+
+# =========================================================
+# CROP DASHBOARD
+# =========================================================
+
 @router.get("/{crop_id}/dashboard", response_model=CropDashboard)
 def get_crop_dashboard(
     crop_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = db.query(Crop).filter(
-        Crop.id == crop_id
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
     ).first()
 
     if crop is None:
@@ -392,17 +533,39 @@ def get_crop_dashboard(
         "reminders": reminders
     }
 
+
+# =========================================================
+# UPDATE CROP
+# =========================================================
+
 @router.put("/{crop_id}")
 def update_crop(
     crop_id: int,
     crop: CropCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
 ):
-    existing_crop = db.query(Crop).filter(Crop.id == crop_id).first()
+    existing_crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if existing_crop is None:
         return {
             "ujumbe": "Zao halikupatikana"
+        }
+
+    # Hakikisha Farm mpya ni ya farmer huyu
+    farm = db.query(Farm).filter(
+        Farm.id == crop.farm_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
+
+    if farm is None:
+        return {
+            "ujumbe": "Huwezi kuhamisha zao kwenye shamba ambalo si lako"
         }
 
     existing_crop.jina = crop.jina
@@ -415,9 +578,24 @@ def update_crop(
     db.refresh(existing_crop)
 
     return existing_crop
+
+
+# =========================================================
+# DELETE CROP
+# =========================================================
+
 @router.delete("/{crop_id}")
-def delete_crop(crop_id: int, db: Session = Depends(get_db)):
-    crop = db.query(Crop).filter(Crop.id == crop_id).first()
+def delete_crop(
+    crop_id: int,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
 
     if crop is None:
         return {
