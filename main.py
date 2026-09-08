@@ -8,6 +8,7 @@ from App.database.models.schedule import Schedule
 from App.database.models.reminder import Reminder
 from App.database.models.otp import OTPVerification
 from App.database.models.seed import Seed
+from App.database.models.fertilizer import Fertilizer
 
 from App.database.database import Base, engine
 
@@ -19,6 +20,7 @@ from App.routers.schedule import router as schedule_router
 from App.routers.reminder import router as reminder_router
 from App.routers.auth import router as auth_router
 from App.routers.seed import router as seed_router
+from App.routers.fertilizer import router as fertilizer_router
 
 
 app = FastAPI()
@@ -42,6 +44,8 @@ app.include_router(reminder_router)
 app.include_router(auth_router)
 
 app.include_router(seed_router)
+
+app.include_router(fertilizer_router)
 
 
 @app.get("/")

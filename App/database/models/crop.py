@@ -63,3 +63,8 @@ class Crop(Base):
         "Seed",
         back_populates="crop"
     )
+
+    fertilizers = relationship(
+        "Fertilizer",
+        back_populates="crop"
+    )
