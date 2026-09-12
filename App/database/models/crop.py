@@ -73,3 +73,8 @@ class Crop(Base):
         "Pesticide",
         back_populates="crop"
     )
+
+    costs = relationship(
+        "Cost",
+        back_populates="crop"
+    )
