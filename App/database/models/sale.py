@@ -4,8 +4,8 @@ from sqlalchemy.orm import relationship
 from App.database.database import Base
 
 
-class Harvest(Base):
-    __tablename__ = "harvests"
+class Sale(Base):
+    __tablename__ = "sales"
 
     id = Column(
         Integer,
@@ -23,6 +23,16 @@ class Harvest(Base):
         nullable=False
     )
 
+    bei_kwa_unit = Column(
+        Float,
+        nullable=False
+    )
+
+    jumla = Column(
+        Float,
+        nullable=False
+    )
+
     tarehe = Column(
         Date,
         nullable=False
@@ -33,18 +43,13 @@ class Harvest(Base):
         nullable=True
     )
 
-    crop_id = Column(
+    harvest_id = Column(
         Integer,
-        ForeignKey("crops.id"),
+        ForeignKey("harvests.id"),
         nullable=False
     )
 
-    crop = relationship(
-        "Crop",
-        back_populates="harvests"
-    )
-
-    sales = relationship(
-        "Sale",
-        back_populates="harvest"
+    harvest = relationship(
+        "Harvest",
+        back_populates="sales"
     )

@@ -12,6 +12,7 @@ from App.database.models.fertilizer import Fertilizer
 from App.database.models.pesticide import Pesticide
 from App.database.models.cost import Cost
 from App.database.models.harvest import Harvest
+from App.database.models.sale import Sale
 
 from App.database.database import Base, engine
 
@@ -27,6 +28,7 @@ from App.routers.fertilizer import router as fertilizer_router
 from App.routers.pesticide import router as pesticide_router
 from App.routers.cost import router as cost_router
 from App.routers.harvest import router as harvest_router
+from App.routers.sale import router as sale_router
 
 
 app = FastAPI()
@@ -58,6 +60,8 @@ app.include_router(pesticide_router)
 app.include_router(cost_router)
 
 app.include_router(harvest_router)
+
+app.include_router(sale_router)
 
 
 @app.get("/")
