@@ -78,3 +78,8 @@ class Crop(Base):
         "Cost",
         back_populates="crop"
     )
+
+    harvests = relationship(
+        "Harvest",
+        back_populates="crop"
+    )
