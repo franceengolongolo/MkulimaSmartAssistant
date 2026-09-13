@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import date
+
 from App.schemas.crop import CropReminder
 
 
@@ -10,7 +11,7 @@ from App.schemas.crop import CropReminder
 class ZaoDashboard(BaseModel):
     jina: str
     aina: str
-    msimu: str
+    msimu: str | None = None
     tarehe_ya_kupanda: date | None = None
 
 
@@ -35,11 +36,31 @@ class RatibaDashboard(BaseModel):
     zijazo: list[RatibaItem]
 
 
+class HarvestSummary(BaseModel):
+    jumla: float
+    unit: str | None = None
+
+
+class SaleSummary(BaseModel):
+    jumla: float
+    unit: str | None = None
+
+
+class FinancialSummary(BaseModel):
+    jumla_ya_gharama: float
+    jumla_ya_mapato: float
+    faida_au_hasara: float
+    hali: str
+
+
 class CropDashboard(BaseModel):
     zao: ZaoDashboard
     activities: ActivitySummary
     ratiba: RatibaDashboard
     reminders: list[CropReminder]
+    mavuno: HarvestSummary
+    mauzo: SaleSummary
+    fedha: FinancialSummary
 
 
 # =========================

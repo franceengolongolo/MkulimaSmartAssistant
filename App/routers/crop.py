@@ -3,13 +3,19 @@ from sqlalchemy.orm import Session
 from datetime import date, timedelta
 
 from App.database.database import SessionLocal
+
 from App.database.models.crop import Crop
 from App.database.models.farm import Farm
 from App.database.models.schedule import Schedule
 from App.database.models.activity import Activity
 from App.database.models.reminder import Reminder
+from App.database.models.cost import Cost
+from App.database.models.harvest import Harvest
+from App.database.models.sale import Sale
+
 from App.schemas.crop import CropCreate
 from App.schemas.dashboard import CropDashboard
+
 from App.services.auth_service import get_current_farmer
 
 
@@ -46,7 +52,7 @@ def get_crops(
 
 
 # =========================================================
-# CREATE CROP - FARMER HAWEZI KUTUMIA FARM YA MTU MWINGINE
+# CREATE CROP
 # =========================================================
 
 @router.post("/")
@@ -81,7 +87,7 @@ def create_crop(
 
 
 # =========================================================
-# GET SINGLE CROP - FARMER WAKE TU
+# GET SINGLE CROP
 # =========================================================
 
 @router.get("/{crop_id}")
@@ -463,6 +469,10 @@ def get_crop_dashboard(
             "ujumbe": "Zao halikupatikana"
         }
 
+    # -----------------------------------------------------
+    # ACTIVITIES
+    # -----------------------------------------------------
+
     activities = db.query(Activity).filter(
         Activity.crop_id == crop_id
     ).all()
@@ -479,12 +489,12 @@ def get_crop_dashboard(
         if activity.hali == "haijakamilika"
     ])
 
+    # -----------------------------------------------------
+    # SCHEDULES
+    # -----------------------------------------------------
+
     ratiba = db.query(Schedule).filter(
         Schedule.crop_id == crop_id
-    ).all()
-
-    reminders = db.query(Reminder).filter(
-        Reminder.crop_id == crop_id
     ).all()
 
     leo = date.today()
@@ -514,6 +524,113 @@ def get_crop_dashboard(
         key=lambda x: x["tarehe"]
     )
 
+    # -----------------------------------------------------
+    # REMINDERS
+    # -----------------------------------------------------
+
+    reminders = db.query(Reminder).filter(
+        Reminder.crop_id == crop_id
+    ).all()
+
+    # -----------------------------------------------------
+    # COSTS
+    # -----------------------------------------------------
+
+    costs = db.query(Cost).filter(
+        Cost.crop_id == crop_id
+    ).all()
+
+    jumla_ya_gharama = sum(
+        cost.gharama
+        for cost in costs
+    )
+
+    # -----------------------------------------------------
+    # HARVESTS
+    # -----------------------------------------------------
+
+    harvests = db.query(Harvest).filter(
+        Harvest.crop_id == crop_id
+    ).all()
+
+    jumla_ya_mavuno = sum(
+        harvest.kiasi
+        for harvest in harvests
+    )
+
+    harvest_units = set(
+        harvest.unit
+        for harvest in harvests
+    )
+
+    if len(harvest_units) == 1:
+        harvest_unit = next(iter(harvest_units))
+    elif len(harvest_units) == 0:
+        harvest_unit = None
+    else:
+        harvest_unit = "mchanganyiko"
+
+    # -----------------------------------------------------
+    # SALES
+    # -----------------------------------------------------
+
+    harvest_ids = [
+        harvest.id
+        for harvest in harvests
+    ]
+
+    if harvest_ids:
+        sales = db.query(Sale).filter(
+            Sale.harvest_id.in_(harvest_ids)
+        ).all()
+    else:
+        sales = []
+
+    jumla_ya_mauzo = sum(
+        sale.kiasi
+        for sale in sales
+    )
+
+    sale_units = set(
+        sale.unit
+        for sale in sales
+    )
+
+    if len(sale_units) == 1:
+        sale_unit = next(iter(sale_units))
+    elif len(sale_units) == 0:
+        sale_unit = None
+    else:
+        sale_unit = "mchanganyiko"
+
+    # -----------------------------------------------------
+    # MAPATO
+    # -----------------------------------------------------
+
+    jumla_ya_mapato = sum(
+        sale.jumla
+        for sale in sales
+    )
+
+    # -----------------------------------------------------
+    # FAIDA / HASARA
+    # -----------------------------------------------------
+
+    faida_au_hasara = (
+        jumla_ya_mapato - jumla_ya_gharama
+    )
+
+    if faida_au_hasara > 0:
+        hali = "faida"
+    elif faida_au_hasara < 0:
+        hali = "hasara"
+    else:
+        hali = "sawa"
+
+    # -----------------------------------------------------
+    # DASHBOARD RESPONSE
+    # -----------------------------------------------------
+
     return {
         "zao": {
             "jina": crop.jina,
@@ -521,16 +638,40 @@ def get_crop_dashboard(
             "msimu": crop.msimu,
             "tarehe_ya_kupanda": crop.tarehe_ya_kupanda
         },
+
         "activities": {
             "jumla": jumla_ya_activities,
             "zilizokamilika": zilizokamilika,
             "ambazo_hazijakamilika": ambazo_hazijakamilika
         },
+
         "ratiba": {
-            "inayofuata": ratiba_zijazo[0] if ratiba_zijazo else None,
+            "inayofuata": (
+                ratiba_zijazo[0]
+                if ratiba_zijazo
+                else None
+            ),
             "zijazo": ratiba_zijazo
         },
-        "reminders": reminders
+
+        "reminders": reminders,
+
+        "mavuno": {
+            "jumla": jumla_ya_mavuno,
+            "unit": harvest_unit
+        },
+
+        "mauzo": {
+            "jumla": jumla_ya_mauzo,
+            "unit": sale_unit
+        },
+
+        "fedha": {
+            "jumla_ya_gharama": jumla_ya_gharama,
+            "jumla_ya_mapato": jumla_ya_mapato,
+            "faida_au_hasara": faida_au_hasara,
+            "hali": hali
+        }
     }
 
 
@@ -557,7 +698,6 @@ def update_crop(
             "ujumbe": "Zao halikupatikana"
         }
 
-    # Hakikisha Farm mpya ni ya farmer huyu
     farm = db.query(Farm).filter(
         Farm.id == crop.farm_id,
         Farm.farmer_id == current_farmer_id

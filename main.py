@@ -30,6 +30,7 @@ from App.routers.cost import router as cost_router
 from App.routers.harvest import router as harvest_router
 from App.routers.sale import router as sale_router
 from App.routers.profit_loss import router as profit_loss_router
+from App.routers.pdf import router as pdf_router
 
 
 app = FastAPI()
@@ -65,6 +66,8 @@ app.include_router(harvest_router)
 app.include_router(sale_router)
 
 app.include_router(profit_loss_router)
+
+app.include_router(pdf_router)
 
 
 @app.get("/")
