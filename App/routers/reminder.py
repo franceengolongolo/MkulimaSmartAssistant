@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from App.database.database import SessionLocal
@@ -39,9 +39,6 @@ def get_db():
 def reminder_to_dict(reminder: Reminder):
     """
     Badilisha Reminder ORM kuwa dictionary.
-
-    Hii inatumika kwenye endpoints za kawaida
-    za Reminder ambazo bado zinarudisha ORM objects.
     """
 
     crop = reminder.crop
@@ -78,13 +75,15 @@ def reminders_to_dict(reminders):
 # CREATE REMINDER
 # =========================================================
 
-@router.post("/")
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED
+)
 def create_reminder(
     reminder: ReminderCreate,
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    # Hakikisha crop ni ya farmer aliye-login
     crop = (
         db.query(Crop)
         .join(Farm, Crop.farm_id == Farm.id)
@@ -96,9 +95,10 @@ def create_reminder(
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Zao halikupatikana au si lako"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Zao halikupatikana au si lako"
+        )
 
     new_reminder = Reminder(
         ujumbe=reminder.ujumbe,
@@ -108,8 +108,14 @@ def create_reminder(
     )
 
     db.add(new_reminder)
-    db.commit()
-    db.refresh(new_reminder)
+
+    try:
+        db.commit()
+        db.refresh(new_reminder)
+
+    except Exception:
+        db.rollback()
+        raise
 
     return reminder_to_dict(new_reminder)
 
@@ -146,13 +152,6 @@ def get_today_reminders(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    """
-    Rudisha notifications za leo.
-
-    Notification Service tayari inarudisha
-    dictionaries zenye taarifa kamili.
-    """
-
     notifications = get_today_notifications(
         db,
         current_farmer_id
@@ -170,13 +169,6 @@ def get_upcoming_reminders(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    """
-    Rudisha notifications zinazokuja.
-
-    Notification Service tayari inarudisha
-    dictionaries zenye taarifa kamili.
-    """
-
     notifications = get_upcoming_notifications(
         db,
         current_farmer_id
@@ -218,25 +210,21 @@ def get_reminder_dashboard(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    # Notifications za leo
     leo = get_today_notifications(
         db,
         current_farmer_id
     )
 
-    # Notifications zilizopita na hazijakamilika
     zilizopita = get_overdue_notifications(
         db,
         current_farmer_id
     )
 
-    # Notifications zinazokuja
     zinazokuja = get_upcoming_notifications(
         db,
         current_farmer_id
     )
 
-    # Reminders zilizokamilika
     zilizokamilika = (
         db.query(Reminder)
         .join(Crop, Reminder.crop_id == Crop.id)
@@ -277,16 +265,6 @@ def get_automatic_notifications(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    """
-    Kusanya notifications zote ambazo hazijakamilika:
-
-    - Notifications za leo
-    - Notifications zilizopita
-    - Notifications zinazokuja
-
-    Completed reminders hazirudishwi.
-    """
-
     leo = get_today_notifications(
         db,
         current_farmer_id
@@ -397,9 +375,10 @@ def get_reminder(
     )
 
     if reminder is None:
-        return {
-            "ujumbe": "Kikumbusho hakikupatikana"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Kikumbusho hakikupatikana"
+        )
 
     return reminder_to_dict(reminder)
 
@@ -426,11 +405,11 @@ def complete_reminder(
     )
 
     if reminder is None:
-        return {
-            "ujumbe": "Kikumbusho hakikupatikana"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Kikumbusho hakikupatikana"
+        )
 
-    # Usikamilishe tena reminder ambayo tayari imekamilika
     if reminder.hali == "imekamilika":
         return {
             "ujumbe": "Kikumbusho hiki tayari kimekamilika",
@@ -439,8 +418,13 @@ def complete_reminder(
 
     reminder.hali = "imekamilika"
 
-    db.commit()
-    db.refresh(reminder)
+    try:
+        db.commit()
+        db.refresh(reminder)
+
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "ujumbe": "Kikumbusho kimekamilika",
@@ -470,14 +454,20 @@ def delete_reminder(
     )
 
     if reminder is None:
-        return {
-            "ujumbe": "Kikumbusho hakikupatikana"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Kikumbusho hakikupatikana"
+        )
 
     reminder_info = reminder_to_dict(reminder)
 
-    db.delete(reminder)
-    db.commit()
+    try:
+        db.delete(reminder)
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "ujumbe": "Kikumbusho kimefutwa",
@@ -508,11 +498,11 @@ def update_reminder(
     )
 
     if reminder is None:
-        return {
-            "ujumbe": "Kikumbusho hakikupatikana"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Kikumbusho hakikupatikana"
+        )
 
-    # Hakikisha crop mpya ni ya farmer huyu
     crop = (
         db.query(Crop)
         .join(Farm, Crop.farm_id == Farm.id)
@@ -524,16 +514,22 @@ def update_reminder(
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Zao jipya halikupatikana au si lako"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Zao jipya halikupatikana au si lako"
+        )
 
     reminder.ujumbe = reminder_data.ujumbe
     reminder.tarehe = reminder_data.tarehe
     reminder.crop_id = reminder_data.crop_id
 
-    db.commit()
-    db.refresh(reminder)
+    try:
+        db.commit()
+        db.refresh(reminder)
+
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "ujumbe": "Kikumbusho kimesasishwa",
