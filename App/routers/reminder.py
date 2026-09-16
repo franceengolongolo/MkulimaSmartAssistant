@@ -38,8 +38,10 @@ def get_db():
 
 def reminder_to_dict(reminder: Reminder):
     """
-    Badilisha Reminder kuwa dictionary yenye taarifa
-    zote muhimu kwa notification/dashboard.
+    Badilisha Reminder ORM kuwa dictionary.
+
+    Hii inatumika kwenye endpoints za kawaida
+    za Reminder ambazo bado zinarudisha ORM objects.
     """
 
     crop = reminder.crop
@@ -63,7 +65,7 @@ def reminder_to_dict(reminder: Reminder):
 
 def reminders_to_dict(reminders):
     """
-    Badilisha list ya reminders kuwa list ya dictionaries.
+    Badilisha list ya Reminder ORM kuwa list ya dictionaries.
     """
 
     return [
@@ -144,12 +146,19 @@ def get_today_reminders(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    reminders = get_today_notifications(
+    """
+    Rudisha notifications za leo.
+
+    Notification Service tayari inarudisha
+    dictionaries zenye taarifa kamili.
+    """
+
+    notifications = get_today_notifications(
         db,
         current_farmer_id
     )
 
-    return reminders_to_dict(reminders)
+    return notifications
 
 
 # =========================================================
@@ -161,12 +170,19 @@ def get_upcoming_reminders(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    reminders = get_upcoming_notifications(
+    """
+    Rudisha notifications zinazokuja.
+
+    Notification Service tayari inarudisha
+    dictionaries zenye taarifa kamili.
+    """
+
+    notifications = get_upcoming_notifications(
         db,
         current_farmer_id
     )
 
-    return reminders_to_dict(reminders)
+    return notifications
 
 
 # =========================================================
@@ -202,19 +218,19 @@ def get_reminder_dashboard(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    # Reminders za leo
+    # Notifications za leo
     leo = get_today_notifications(
         db,
         current_farmer_id
     )
 
-    # Reminders zilizopita na hazijakamilika
+    # Notifications zilizopita na hazijakamilika
     zilizopita = get_overdue_notifications(
         db,
         current_farmer_id
     )
 
-    # Reminders zinazokuja
+    # Notifications zinazokuja
     zinazokuja = get_upcoming_notifications(
         db,
         current_farmer_id
@@ -244,9 +260,9 @@ def get_reminder_dashboard(
         },
 
         "reminders": {
-            "leo": reminders_to_dict(leo),
-            "zinazokuja": reminders_to_dict(zinazokuja),
-            "zilizopita": reminders_to_dict(zilizopita),
+            "leo": leo,
+            "zinazokuja": zinazokuja,
+            "zilizopita": zilizopita,
             "zilizokamilika": reminders_to_dict(zilizokamilika)
         }
     }
@@ -301,9 +317,9 @@ def get_automatic_notifications(
         },
 
         "notifications": {
-            "leo": reminders_to_dict(leo),
-            "zilizopita": reminders_to_dict(zilizopita),
-            "zinazokuja": reminders_to_dict(zinazokuja)
+            "leo": leo,
+            "zilizopita": zilizopita,
+            "zinazokuja": zinazokuja
         }
     }
 
@@ -317,12 +333,12 @@ def get_today_notifications_endpoint(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    reminders = get_today_notifications(
+    notifications = get_today_notifications(
         db,
         current_farmer_id
     )
 
-    return reminders_to_dict(reminders)
+    return notifications
 
 
 # =========================================================
@@ -334,12 +350,12 @@ def get_overdue_notifications_endpoint(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    reminders = get_overdue_notifications(
+    notifications = get_overdue_notifications(
         db,
         current_farmer_id
     )
 
-    return reminders_to_dict(reminders)
+    return notifications
 
 
 # =========================================================
@@ -351,12 +367,12 @@ def get_upcoming_notifications_endpoint(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    reminders = get_upcoming_notifications(
+    notifications = get_upcoming_notifications(
         db,
         current_farmer_id
     )
 
-    return reminders_to_dict(reminders)
+    return notifications
 
 
 # =========================================================
