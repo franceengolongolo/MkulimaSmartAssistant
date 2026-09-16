@@ -8,6 +8,7 @@ class CropCreate(BaseModel):
     msimu: str
     farm_id: int
     tarehe_ya_kupanda: date | None = None
+    program_id: int | None = None
 
 
 class CropReminder(BaseModel):

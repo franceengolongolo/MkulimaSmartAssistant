@@ -40,13 +40,22 @@ class Schedule(Base):
         nullable=False
     )
 
-    # Relationship na Crop
+    program_task_id = Column(
+        Integer,
+        ForeignKey("program_tasks.id"),
+        nullable=True
+    )
+
     crop = relationship(
         "Crop",
         back_populates="schedules"
     )
 
-    # Relationship na Reminder
+    program_task = relationship(
+        "ProgramTask",
+        back_populates="schedules"
+    )
+
     reminder = relationship(
         "Reminder",
         back_populates="schedule",

@@ -39,8 +39,19 @@ class Crop(Base):
         nullable=False
     )
 
+    program_id = Column(
+        Integer,
+        ForeignKey("crop_programs.id"),
+        nullable=True
+    )
+
     farm = relationship(
         "Farm",
+        back_populates="crops"
+    )
+
+    program = relationship(
+        "CropProgram",
         back_populates="crops"
     )
 

@@ -253,6 +253,62 @@ def get_reminder_dashboard(
 
 
 # =========================================================
+# AUTOMATIC NOTIFICATIONS
+# =========================================================
+
+@router.get("/notifications/automatic")
+def get_automatic_notifications(
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    """
+    Kusanya notifications zote ambazo hazijakamilika:
+
+    - Notifications za leo
+    - Notifications zilizopita
+    - Notifications zinazokuja
+
+    Completed reminders hazirudishwi.
+    """
+
+    leo = get_today_notifications(
+        db,
+        current_farmer_id
+    )
+
+    zilizopita = get_overdue_notifications(
+        db,
+        current_farmer_id
+    )
+
+    zinazokuja = get_upcoming_notifications(
+        db,
+        current_farmer_id
+    )
+
+    return {
+        "tarehe_ya_leo": date.today(),
+
+        "idadi": {
+            "leo": len(leo),
+            "zilizopita": len(zilizopita),
+            "zinazokuja": len(zinazokuja),
+            "jumla": (
+                len(leo)
+                + len(zilizopita)
+                + len(zinazokuja)
+            )
+        },
+
+        "notifications": {
+            "leo": reminders_to_dict(leo),
+            "zilizopita": reminders_to_dict(zilizopita),
+            "zinazokuja": reminders_to_dict(zinazokuja)
+        }
+    }
+
+
+# =========================================================
 # NOTIFICATIONS ZA LEO
 # =========================================================
 

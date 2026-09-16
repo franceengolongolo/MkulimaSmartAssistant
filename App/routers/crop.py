@@ -17,6 +17,9 @@ from App.schemas.crop import CropCreate
 from App.schemas.dashboard import CropDashboard
 
 from App.services.auth_service import get_current_farmer
+from App.services.crop_program_engine import (
+    generate_schedules_from_crop_program
+)
 
 
 router = APIRouter(
@@ -76,7 +79,8 @@ def create_crop(
         aina=crop.aina,
         msimu=crop.msimu,
         farm_id=crop.farm_id,
-        tarehe_ya_kupanda=crop.tarehe_ya_kupanda
+        tarehe_ya_kupanda=crop.tarehe_ya_kupanda,
+        program_id=crop.program_id
     )
 
     db.add(new_crop)
@@ -109,6 +113,59 @@ def get_crop(
         }
 
     return crop
+
+
+# =========================================================
+# GENERATE CROP PROGRAM SCHEDULES
+# =========================================================
+
+@router.post("/{crop_id}/generate-program-schedules")
+def generate_crop_program_schedules(
+    crop_id: int,
+    db: Session = Depends(get_db),
+    current_farmer_id: int = Depends(get_current_farmer)
+):
+    crop = db.query(Crop).join(
+        Farm, Crop.farm_id == Farm.id
+    ).filter(
+        Crop.id == crop_id,
+        Farm.farmer_id == current_farmer_id
+    ).first()
+
+    if crop is None:
+        return {
+            "ujumbe": "Zao halikupatikana"
+        }
+
+    if crop.program_id is None:
+        return {
+            "ujumbe": "Zao hili halijaunganishwa na Crop Program"
+        }
+
+    if crop.tarehe_ya_kupanda is None:
+        return {
+            "ujumbe": "Tarehe ya kupanda haijawekwa kwenye zao"
+        }
+
+    try:
+        schedules = generate_schedules_from_crop_program(
+            db=db,
+            crop_id=crop_id
+        )
+
+    except ValueError as error:
+        return {
+            "ujumbe": str(error)
+        }
+
+    return {
+        "ujumbe": "Ratiba za Crop Program zimetengenezwa",
+        "crop_id": crop.id,
+        "zao": crop.jina,
+        "program_id": crop.program_id,
+        "idadi_ya_ratiba": len(schedules),
+        "ratiba": schedules
+    }
 
 
 # =========================================================
@@ -174,12 +231,17 @@ def get_crop_schedule(
     for schedule in schedules:
         tarehe = None
 
-        if crop.tarehe_ya_kupanda:
+        if (
+            crop.tarehe_ya_kupanda
+            and schedule.siku is not None
+        ):
             tarehe = crop.tarehe_ya_kupanda + timedelta(
                 days=schedule.siku
             )
 
-        if tarehe == date.today():
+        if schedule.status == "imekamilika":
+            status = "imekamilika"
+        elif tarehe == date.today():
             status = "leo"
         elif tarehe and tarehe > date.today():
             status = "inayofuata"
@@ -187,11 +249,13 @@ def get_crop_schedule(
             status = "imepita"
 
         ratiba.append({
+            "id": schedule.id,
             "jina": schedule.jina,
             "siku": schedule.siku,
             "tarehe": tarehe,
             "status": status,
-            "maelezo": schedule.maelezo
+            "maelezo": schedule.maelezo,
+            "program_task_id": schedule.program_task_id
         })
 
     return {
@@ -236,17 +300,26 @@ def get_today_schedule(
     ratiba_ya_leo = []
 
     for schedule in schedules:
+
+        if schedule.siku is None:
+            continue
+
         tarehe = crop.tarehe_ya_kupanda + timedelta(
             days=schedule.siku
         )
 
-        if tarehe == leo:
+        if (
+            tarehe == leo
+            and schedule.status != "imekamilika"
+        ):
             ratiba_ya_leo.append({
+                "id": schedule.id,
                 "jina": schedule.jina,
                 "siku": schedule.siku,
                 "tarehe": tarehe,
                 "status": "leo",
-                "maelezo": schedule.maelezo
+                "maelezo": schedule.maelezo,
+                "program_task_id": schedule.program_task_id
             })
 
     return {
@@ -292,12 +365,19 @@ def get_next_schedule(
     ratiba_zijazo = []
 
     for schedule in schedules:
+
+        if schedule.siku is None:
+            continue
+
         tarehe = crop.tarehe_ya_kupanda + timedelta(
             days=schedule.siku
         )
 
         if tarehe >= leo and schedule.status != "imekamilika":
-            siku_zimebaki = (tarehe - leo).days
+
+            siku_zimebaki = (
+                tarehe - leo
+            ).days
 
             if tarehe == leo:
                 status = "leo"
@@ -305,12 +385,14 @@ def get_next_schedule(
                 status = "inayofuata"
 
             ratiba_zijazo.append({
+                "id": schedule.id,
                 "jina": schedule.jina,
                 "siku": schedule.siku,
                 "tarehe": tarehe,
                 "siku_zimebaki": siku_zimebaki,
                 "status": status,
-                "maelezo": schedule.maelezo
+                "maelezo": schedule.maelezo,
+                "program_task_id": schedule.program_task_id
             })
 
     if not ratiba_zijazo:
@@ -364,12 +446,19 @@ def get_upcoming_schedules(
     ratiba_zijazo = []
 
     for schedule in schedules:
+
+        if schedule.siku is None:
+            continue
+
         tarehe = crop.tarehe_ya_kupanda + timedelta(
             days=schedule.siku
         )
 
         if tarehe >= leo and schedule.status != "imekamilika":
-            siku_zimebaki = (tarehe - leo).days
+
+            siku_zimebaki = (
+                tarehe - leo
+            ).days
 
             if tarehe == leo:
                 status = "leo"
@@ -377,12 +466,14 @@ def get_upcoming_schedules(
                 status = "inayofuata"
 
             ratiba_zijazo.append({
+                "id": schedule.id,
                 "jina": schedule.jina,
                 "siku": schedule.siku,
                 "tarehe": tarehe,
                 "siku_zimebaki": siku_zimebaki,
                 "status": status,
-                "maelezo": schedule.maelezo
+                "maelezo": schedule.maelezo,
+                "program_task_id": schedule.program_task_id
             })
 
     ratiba_zijazo.sort(
@@ -439,6 +530,7 @@ def get_crop_summary(
         "aina": crop.aina,
         "msimu": crop.msimu,
         "tarehe_ya_kupanda": crop.tarehe_ya_kupanda,
+        "program_id": crop.program_id,
         "activities": {
             "jumla": jumla_ya_activities,
             "zilizokamilika": zilizokamilika,
@@ -502,13 +594,23 @@ def get_crop_dashboard(
     ratiba_zijazo = []
 
     if crop.tarehe_ya_kupanda:
+
         for schedule in ratiba:
+
+            if schedule.siku is None:
+                continue
+
             tarehe = crop.tarehe_ya_kupanda + timedelta(
                 days=schedule.siku
             )
 
-            if tarehe >= leo and schedule.status != "imekamilika":
-                siku_zimebaki = (tarehe - leo).days
+            if (
+                tarehe >= leo
+                and schedule.status != "imekamilika"
+            ):
+                siku_zimebaki = (
+                    tarehe - leo
+                ).days
 
                 ratiba_zijazo.append({
                     "zao": crop.jina,
@@ -713,6 +815,7 @@ def update_crop(
     existing_crop.msimu = crop.msimu
     existing_crop.farm_id = crop.farm_id
     existing_crop.tarehe_ya_kupanda = crop.tarehe_ya_kupanda
+    existing_crop.program_id = crop.program_id
 
     db.commit()
     db.refresh(existing_crop)
