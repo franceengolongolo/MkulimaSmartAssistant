@@ -27,6 +27,9 @@ def generate_schedules_from_crop_program(
             -> Program Rules
             -> Schedule
             -> Reminder
+
+    Kwa sasa Engine inazalisha schedules kutoka
+    kwenye rules za trigger_type = planting.
     """
 
     # =====================================================
@@ -74,7 +77,8 @@ def generate_schedules_from_crop_program(
             ProgramStage.program_id == crop.program_id
         )
         .order_by(
-            ProgramStage.namba_ya_hatua.asc()
+            ProgramStage.namba_ya_hatua.asc(),
+            ProgramStage.id.asc()
         )
         .all()
     )
@@ -129,25 +133,67 @@ def generate_schedules_from_crop_program(
 
             for rule in rules:
 
-                # Kwa sasa Engine hii inashughulikia
-                # rule zinazotegemea tarehe ya kupanda.
-                if rule.trigger_type != "planting":
+                # -----------------------------------------
+                # Kwa sasa Engine inashughulikia
+                # trigger ya planting pekee.
+                # Rules nyingine kama harvest
+                # zitaongezwa kwenye hatua inayofuata.
+                # -----------------------------------------
+
+                trigger_type = (
+                    rule.trigger_type.strip().lower()
+                    if rule.trigger_type
+                    else ""
+                )
+
+                if trigger_type != "planting":
                     continue
+
+                # -----------------------------------------
+                # HAKIKISHA OFFSET VALUE IPO
+                # -----------------------------------------
 
                 if rule.offset_value is None:
                     continue
 
+                # -----------------------------------------
+                # HAKIKISHA OFFSET UNIT IPO
+                # -----------------------------------------
+
                 if rule.offset_unit is None:
                     continue
+
+                # -----------------------------------------
+                # NORMALIZE OFFSET UNIT
+                # -----------------------------------------
+
+                offset_unit = (
+                    rule.offset_unit.strip().lower()
+                )
+
+                # -----------------------------------------
+                # HAKIKISHA RULE STAGE
+                # -----------------------------------------
+                #
+                # Ikiwa rule imepewa stage_id,
+                # lazima iwe stage ile ile ya task.
+                #
+                # Hii inazuia rule ya task moja
+                # ku-reference stage nyingine.
+                # -----------------------------------------
+
+                if rule.stage_id is not None:
+                    if rule.stage_id != task.stage_id:
+                        continue
 
                 # =========================================
                 # 10. HESABU SIKU
                 # =========================================
 
-                if rule.offset_unit == "days":
+                if offset_unit == "days":
                     siku = rule.offset_value
 
-                elif rule.offset_unit == "weeks":
+                elif offset_unit == "weeks":
                     siku = rule.offset_value * 7
 
                 else:
@@ -163,6 +209,9 @@ def generate_schedules_from_crop_program(
                         Schedule.crop_id == crop.id,
                         Schedule.program_task_id == task.id
                     )
+                    .order_by(
+                        Schedule.id.asc()
+                    )
                     .first()
                 )
 
@@ -176,7 +225,8 @@ def generate_schedules_from_crop_program(
                     existing_reminder = (
                         db.query(Reminder)
                         .filter(
-                            Reminder.schedule_id == existing_schedule.id
+                            Reminder.schedule_id
+                            == existing_schedule.id
                         )
                         .first()
                     )
@@ -249,5 +299,9 @@ def generate_schedules_from_crop_program(
 
     for schedule in generated_schedules:
         db.refresh(schedule)
+
+    # =====================================================
+    # 17. RUDISHA SCHEDULES ZILIZOZALISHWA
+    # =====================================================
 
     return generated_schedules

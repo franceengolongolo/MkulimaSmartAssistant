@@ -845,9 +845,99 @@ def delete_crop(
             "ujumbe": "Zao halikupatikana"
         }
 
+    # -----------------------------------------------------
+    # SALES ZINAZOHUSIANA NA HARVESTS ZA CROP
+    # -----------------------------------------------------
+
+    harvests = db.query(Harvest).filter(
+        Harvest.crop_id == crop_id
+    ).all()
+
+    harvest_ids = [
+        harvest.id
+        for harvest in harvests
+    ]
+
+    if harvest_ids:
+        db.query(Sale).filter(
+            Sale.harvest_id.in_(harvest_ids)
+        ).delete(
+            synchronize_session=False
+        )
+
+    # -----------------------------------------------------
+    # REMINDERS
+    # -----------------------------------------------------
+
+    db.query(Reminder).filter(
+        Reminder.crop_id == crop_id
+    ).delete(
+        synchronize_session=False
+    )
+
+    # -----------------------------------------------------
+    # SCHEDULES
+    # -----------------------------------------------------
+
+    db.query(Schedule).filter(
+        Schedule.crop_id == crop_id
+    ).delete(
+        synchronize_session=False
+    )
+
+    # -----------------------------------------------------
+    # ACTIVITIES
+    # -----------------------------------------------------
+
+    db.query(Activity).filter(
+        Activity.crop_id == crop_id
+    ).delete(
+        synchronize_session=False
+    )
+
+    # -----------------------------------------------------
+    # COSTS
+    # -----------------------------------------------------
+
+    db.query(Cost).filter(
+        Cost.crop_id == crop_id
+    ).delete(
+        synchronize_session=False
+    )
+
+    # -----------------------------------------------------
+    # HARVESTS
+    # -----------------------------------------------------
+
+    db.query(Harvest).filter(
+        Harvest.crop_id == crop_id
+    ).delete(
+        synchronize_session=False
+    )
+
+    # -----------------------------------------------------
+    # CROP INPUTS
+    # -----------------------------------------------------
+
+    if hasattr(Crop, "seeds"):
+        for seed in list(crop.seeds):
+            db.delete(seed)
+
+    if hasattr(Crop, "fertilizers"):
+        for fertilizer in list(crop.fertilizers):
+            db.delete(fertilizer)
+
+    if hasattr(Crop, "pesticides"):
+        for pesticide in list(crop.pesticides):
+            db.delete(pesticide)
+
+    # -----------------------------------------------------
+    # DELETE CROP
+    # -----------------------------------------------------
+
     db.delete(crop)
     db.commit()
 
     return {
-        "ujumbe": "Zao limefutwa kikamilifu"
+        "ujumbe": "Zao na taarifa zake zote zimefutwa kikamilifu"
     }

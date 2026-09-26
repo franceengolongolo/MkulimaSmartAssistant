@@ -37,11 +37,14 @@ def create_program_rule(
     rule: ProgramRuleCreate,
     db: Session = Depends(get_db)
 ):
-    task = db.query(
-        ProgramTask
-    ).filter(
-        ProgramTask.id == rule.task_id
-    ).first()
+    # HAKIKISHA TASK IPO
+    task = (
+        db.query(ProgramTask)
+        .filter(
+            ProgramTask.id == rule.task_id
+        )
+        .first()
+    )
 
     if task is None:
         raise HTTPException(
@@ -49,17 +52,40 @@ def create_program_rule(
             detail="Program Task haikupatikana"
         )
 
+    # HAKIKISHA STAGE IPO NA NI YA PROGRAM
     if rule.stage_id is not None:
-        stage = db.query(
-            ProgramStage
-        ).filter(
-            ProgramStage.id == rule.stage_id
-        ).first()
+        stage = (
+            db.query(ProgramStage)
+            .filter(
+                ProgramStage.id == rule.stage_id
+            )
+            .first()
+        )
 
         if stage is None:
             raise HTTPException(
                 status_code=404,
                 detail="Program Stage haikupatikana"
+            )
+
+        task_stage = (
+            db.query(ProgramStage)
+            .filter(
+                ProgramStage.id == task.stage_id
+            )
+            .first()
+        )
+
+        if task_stage is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Program Task haijahusishwa na Program Stage halali"
+            )
+
+        if stage.program_id != task_stage.program_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Program Stage haihusiani na Program ya Program Task"
             )
 
     new_rule = ProgramRule(
@@ -89,11 +115,13 @@ def create_program_rule(
 def get_program_rules(
     db: Session = Depends(get_db)
 ):
-    rules = db.query(
-        ProgramRule
-    ).order_by(
-        ProgramRule.id.asc()
-    ).all()
+    rules = (
+        db.query(ProgramRule)
+        .order_by(
+            ProgramRule.id.asc()
+        )
+        .all()
+    )
 
     return rules
 
@@ -110,11 +138,13 @@ def get_program_rule(
     rule_id: int,
     db: Session = Depends(get_db)
 ):
-    rule = db.query(
-        ProgramRule
-    ).filter(
-        ProgramRule.id == rule_id
-    ).first()
+    rule = (
+        db.query(ProgramRule)
+        .filter(
+            ProgramRule.id == rule_id
+        )
+        .first()
+    )
 
     if rule is None:
         raise HTTPException(
@@ -138,11 +168,13 @@ def update_program_rule(
     rule: ProgramRuleCreate,
     db: Session = Depends(get_db)
 ):
-    existing_rule = db.query(
-        ProgramRule
-    ).filter(
-        ProgramRule.id == rule_id
-    ).first()
+    existing_rule = (
+        db.query(ProgramRule)
+        .filter(
+            ProgramRule.id == rule_id
+        )
+        .first()
+    )
 
     if existing_rule is None:
         raise HTTPException(
@@ -150,11 +182,14 @@ def update_program_rule(
             detail="Program Rule haikupatikana"
         )
 
-    task = db.query(
-        ProgramTask
-    ).filter(
-        ProgramTask.id == rule.task_id
-    ).first()
+    # HAKIKISHA TASK IPO
+    task = (
+        db.query(ProgramTask)
+        .filter(
+            ProgramTask.id == rule.task_id
+        )
+        .first()
+    )
 
     if task is None:
         raise HTTPException(
@@ -162,17 +197,40 @@ def update_program_rule(
             detail="Program Task haikupatikana"
         )
 
+    # HAKIKISHA STAGE IPO NA NI YA PROGRAM
     if rule.stage_id is not None:
-        stage = db.query(
-            ProgramStage
-        ).filter(
-            ProgramStage.id == rule.stage_id
-        ).first()
+        stage = (
+            db.query(ProgramStage)
+            .filter(
+                ProgramStage.id == rule.stage_id
+            )
+            .first()
+        )
 
         if stage is None:
             raise HTTPException(
                 status_code=404,
                 detail="Program Stage haikupatikana"
+            )
+
+        task_stage = (
+            db.query(ProgramStage)
+            .filter(
+                ProgramStage.id == task.stage_id
+            )
+            .first()
+        )
+
+        if task_stage is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Program Task haijahusishwa na Program Stage halali"
+            )
+
+        if stage.program_id != task_stage.program_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Program Stage haihusiani na Program ya Program Task"
             )
 
     existing_rule.task_id = rule.task_id
@@ -199,11 +257,13 @@ def delete_program_rule(
     rule_id: int,
     db: Session = Depends(get_db)
 ):
-    rule = db.query(
-        ProgramRule
-    ).filter(
-        ProgramRule.id == rule_id
-    ).first()
+    rule = (
+        db.query(ProgramRule)
+        .filter(
+            ProgramRule.id == rule_id
+        )
+        .first()
+    )
 
     if rule is None:
         raise HTTPException(
