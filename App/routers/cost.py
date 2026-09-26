@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from App.database.database import SessionLocal
@@ -23,22 +23,57 @@ def get_db():
         db.close()
 
 
+def get_farmer_crop(
+    db: Session,
+    crop_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Crop)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Crop.id == crop_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
+
+def get_farmer_cost(
+    db: Session,
+    cost_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Cost)
+        .join(Crop, Cost.crop_id == Crop.id)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Cost.id == cost_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
+
 @router.get("/")
 def get_costs(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    costs = (
+    return (
         db.query(Cost)
         .join(Crop, Cost.crop_id == Crop.id)
         .join(Farm, Crop.farm_id == Farm.id)
         .filter(
             Farm.farmer_id == current_farmer_id
         )
+        .order_by(
+            Cost.tarehe.asc(),
+            Cost.id.asc()
+        )
         .all()
     )
-
-    return costs
 
 
 @router.post("/")
@@ -47,20 +82,17 @@ def create_cost(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == cost.crop_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=cost.crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Huwezi kuongeza gharama kwenye zao ambalo si lako"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Huwezi kuongeza gharama kwenye zao ambalo si lako"
+        )
 
     new_cost = Cost(
         jina=cost.jina,
@@ -73,9 +105,17 @@ def create_cost(
         crop_id=cost.crop_id
     )
 
-    db.add(new_cost)
-    db.commit()
-    db.refresh(new_cost)
+    try:
+        db.add(new_cost)
+        db.commit()
+        db.refresh(new_cost)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kuhifadhi gharama"
+        )
 
     return new_cost
 
@@ -86,25 +126,26 @@ def get_crop_costs(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == crop_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Zao halikupatikana"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Zao halikupatikana au si lako"
+        )
 
     costs = (
         db.query(Cost)
         .filter(
             Cost.crop_id == crop_id
+        )
+        .order_by(
+            Cost.tarehe.asc(),
+            Cost.id.asc()
         )
         .all()
     )
@@ -122,21 +163,17 @@ def get_cost(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    cost = (
-        db.query(Cost)
-        .join(Crop, Cost.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Cost.id == cost_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    cost = get_farmer_cost(
+        db=db,
+        cost_id=cost_id,
+        current_farmer_id=current_farmer_id
     )
 
     if cost is None:
-        return {
-            "ujumbe": "Gharama haikupatikana"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Gharama haikupatikana"
+        )
 
     return cost
 
@@ -148,36 +185,29 @@ def update_cost(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    existing_cost = (
-        db.query(Cost)
-        .join(Crop, Cost.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Cost.id == cost_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    existing_cost = get_farmer_cost(
+        db=db,
+        cost_id=cost_id,
+        current_farmer_id=current_farmer_id
     )
 
     if existing_cost is None:
-        return {
-            "ujumbe": "Gharama haikupatikana"
-        }
-
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == cost.crop_id,
-            Farm.farmer_id == current_farmer_id
+        raise HTTPException(
+            status_code=404,
+            detail="Gharama haikupatikana"
         )
-        .first()
+
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=cost.crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Huwezi kuhamisha gharama kwenye zao ambalo si lako"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Huwezi kuhamisha gharama kwenye zao ambalo si lako"
+        )
 
     existing_cost.jina = cost.jina
     existing_cost.aina = cost.aina
@@ -188,8 +218,16 @@ def update_cost(
     existing_cost.maelezo = cost.maelezo
     existing_cost.crop_id = cost.crop_id
 
-    db.commit()
-    db.refresh(existing_cost)
+    try:
+        db.commit()
+        db.refresh(existing_cost)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kusasisha gharama"
+        )
 
     return existing_cost
 
@@ -200,24 +238,28 @@ def delete_cost(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    cost = (
-        db.query(Cost)
-        .join(Crop, Cost.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Cost.id == cost_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    cost = get_farmer_cost(
+        db=db,
+        cost_id=cost_id,
+        current_farmer_id=current_farmer_id
     )
 
     if cost is None:
-        return {
-            "ujumbe": "Gharama haikupatikana"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Gharama haikupatikana"
+        )
 
-    db.delete(cost)
-    db.commit()
+    try:
+        db.delete(cost)
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kufuta gharama"
+        )
 
     return {
         "ujumbe": "Gharama imefutwa kikamilifu"
