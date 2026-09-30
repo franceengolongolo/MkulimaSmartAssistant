@@ -227,6 +227,11 @@ def get_farm_dashboard(
 
         for schedule in schedules:
 
+            # Schedule isiyokuwa na siku haiwezi
+            # kuhesabiwa tarehe yake.
+            if schedule.siku is None:
+                continue
+
             tarehe = crop.tarehe_ya_kupanda + timedelta(
                 days=schedule.siku
             )
@@ -250,9 +255,14 @@ def get_farm_dashboard(
             # -----------------------------
             # RATIBA ZIJAZO
             # -----------------------------
+            #
+            # Tarehe ya leo haingii hapa.
+            # Ratiba ya leo inaenda kwenye
+            # ratiba_ya_leo pekee.
+            # -----------------------------
 
             if (
-                tarehe >= leo
+                tarehe > leo
                 and schedule.status != "imekamilika"
             ):
 
