@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from App.database.database import SessionLocal
@@ -23,9 +23,38 @@ def get_db():
         db.close()
 
 
-# =========================================================
-# GET ALL FERTILIZERS - FARMER WAKE TU
-# =========================================================
+def get_farmer_crop(
+    db: Session,
+    crop_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Crop)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Crop.id == crop_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
+
+def get_farmer_fertilizer(
+    db: Session,
+    fertilizer_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Fertilizer)
+        .join(Crop, Fertilizer.crop_id == Crop.id)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Fertilizer.id == fertilizer_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
 
 @router.get("/")
 def get_fertilizers(
@@ -39,15 +68,12 @@ def get_fertilizers(
         .filter(
             Farm.farmer_id == current_farmer_id
         )
+        .order_by(Fertilizer.id.asc())
         .all()
     )
 
     return fertilizers
 
-
-# =========================================================
-# CREATE FERTILIZER
-# =========================================================
 
 @router.post("/")
 def create_fertilizer(
@@ -55,20 +81,17 @@ def create_fertilizer(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == fertilizer.crop_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=fertilizer.crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Huwezi kuongeza mbolea kwenye zao ambalo si lako"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Zao halikupatikana au si lako"
+        )
 
     new_fertilizer = Fertilizer(
         jina=fertilizer.jina,
@@ -80,16 +103,20 @@ def create_fertilizer(
         crop_id=fertilizer.crop_id
     )
 
-    db.add(new_fertilizer)
-    db.commit()
-    db.refresh(new_fertilizer)
+    try:
+        db.add(new_fertilizer)
+        db.commit()
+        db.refresh(new_fertilizer)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kuhifadhi mbolea"
+        )
 
     return new_fertilizer
 
-
-# =========================================================
-# GET FERTILIZERS ZA CROP FULANI
-# =========================================================
 
 @router.get("/crop/{crop_id}")
 def get_crop_fertilizers(
@@ -97,26 +124,24 @@ def get_crop_fertilizers(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == crop_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Zao halikupatikana"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Zao halikupatikana au si lako"
+        )
 
     fertilizers = (
         db.query(Fertilizer)
         .filter(
             Fertilizer.crop_id == crop_id
         )
+        .order_by(Fertilizer.id.asc())
         .all()
     )
 
@@ -127,38 +152,26 @@ def get_crop_fertilizers(
     }
 
 
-# =========================================================
-# GET SINGLE FERTILIZER
-# =========================================================
-
 @router.get("/{fertilizer_id}")
 def get_fertilizer(
     fertilizer_id: int,
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    fertilizer = (
-        db.query(Fertilizer)
-        .join(Crop, Fertilizer.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Fertilizer.id == fertilizer_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    fertilizer = get_farmer_fertilizer(
+        db=db,
+        fertilizer_id=fertilizer_id,
+        current_farmer_id=current_farmer_id
     )
 
     if fertilizer is None:
-        return {
-            "ujumbe": "Mbolea haikupatikana"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Mbolea haikupatikana"
+        )
 
     return fertilizer
 
-
-# =========================================================
-# UPDATE FERTILIZER
-# =========================================================
 
 @router.put("/{fertilizer_id}")
 def update_fertilizer(
@@ -167,36 +180,29 @@ def update_fertilizer(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    existing_fertilizer = (
-        db.query(Fertilizer)
-        .join(Crop, Fertilizer.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Fertilizer.id == fertilizer_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    existing_fertilizer = get_farmer_fertilizer(
+        db=db,
+        fertilizer_id=fertilizer_id,
+        current_farmer_id=current_farmer_id
     )
 
     if existing_fertilizer is None:
-        return {
-            "ujumbe": "Mbolea haikupatikana"
-        }
-
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == fertilizer.crop_id,
-            Farm.farmer_id == current_farmer_id
+        raise HTTPException(
+            status_code=404,
+            detail="Mbolea haikupatikana"
         )
-        .first()
+
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=fertilizer.crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Huwezi kuhamisha mbolea kwenye zao ambalo si lako"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Zao jipya halikupatikana au si lako"
+        )
 
     existing_fertilizer.jina = fertilizer.jina
     existing_fertilizer.aina = fertilizer.aina
@@ -206,15 +212,19 @@ def update_fertilizer(
     existing_fertilizer.gharama = fertilizer.gharama
     existing_fertilizer.crop_id = fertilizer.crop_id
 
-    db.commit()
-    db.refresh(existing_fertilizer)
+    try:
+        db.commit()
+        db.refresh(existing_fertilizer)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kusasisha mbolea"
+        )
 
     return existing_fertilizer
 
-
-# =========================================================
-# DELETE FERTILIZER
-# =========================================================
 
 @router.delete("/{fertilizer_id}")
 def delete_fertilizer(
@@ -222,24 +232,28 @@ def delete_fertilizer(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    fertilizer = (
-        db.query(Fertilizer)
-        .join(Crop, Fertilizer.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Fertilizer.id == fertilizer_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    fertilizer = get_farmer_fertilizer(
+        db=db,
+        fertilizer_id=fertilizer_id,
+        current_farmer_id=current_farmer_id
     )
 
     if fertilizer is None:
-        return {
-            "ujumbe": "Mbolea haikupatikana"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Mbolea haikupatikana"
+        )
 
-    db.delete(fertilizer)
-    db.commit()
+    try:
+        db.delete(fertilizer)
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kufuta mbolea"
+        )
 
     return {
         "ujumbe": "Mbolea imefutwa kikamilifu"

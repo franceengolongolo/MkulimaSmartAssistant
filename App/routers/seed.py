@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from App.database.database import SessionLocal
@@ -23,9 +23,38 @@ def get_db():
         db.close()
 
 
-# =========================================================
-# GET ALL SEEDS - FARMER WAKE TU
-# =========================================================
+def get_farmer_crop(
+    db: Session,
+    crop_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Crop)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Crop.id == crop_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
+
+def get_farmer_seed(
+    db: Session,
+    seed_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Seed)
+        .join(Crop, Seed.crop_id == Crop.id)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Seed.id == seed_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
 
 @router.get("/")
 def get_seeds(
@@ -39,15 +68,12 @@ def get_seeds(
         .filter(
             Farm.farmer_id == current_farmer_id
         )
+        .order_by(Seed.id.asc())
         .all()
     )
 
     return seeds
 
-
-# =========================================================
-# CREATE SEED - FARMER HAWEZI KUTUMIA CROP YA MTU MWINGINE
-# =========================================================
 
 @router.post("/")
 def create_seed(
@@ -55,20 +81,17 @@ def create_seed(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == seed.crop_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=seed.crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Huwezi kuongeza mbegu kwenye zao ambalo si lako"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Zao halikupatikana au si lako"
+        )
 
     new_seed = Seed(
         jina=seed.jina,
@@ -80,16 +103,20 @@ def create_seed(
         crop_id=seed.crop_id
     )
 
-    db.add(new_seed)
-    db.commit()
-    db.refresh(new_seed)
+    try:
+        db.add(new_seed)
+        db.commit()
+        db.refresh(new_seed)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kuhifadhi mbegu"
+        )
 
     return new_seed
 
-
-# =========================================================
-# GET SEEDS ZA CROP FULANI
-# =========================================================
 
 @router.get("/crop/{crop_id}")
 def get_crop_seeds(
@@ -97,26 +124,24 @@ def get_crop_seeds(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == crop_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Zao halikupatikana"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Zao halikupatikana au si lako"
+        )
 
     seeds = (
         db.query(Seed)
         .filter(
             Seed.crop_id == crop_id
         )
+        .order_by(Seed.id.asc())
         .all()
     )
 
@@ -127,38 +152,26 @@ def get_crop_seeds(
     }
 
 
-# =========================================================
-# GET SINGLE SEED - FARMER WAKE TU
-# =========================================================
-
 @router.get("/{seed_id}")
 def get_seed(
     seed_id: int,
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    seed = (
-        db.query(Seed)
-        .join(Crop, Seed.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Seed.id == seed_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    seed = get_farmer_seed(
+        db=db,
+        seed_id=seed_id,
+        current_farmer_id=current_farmer_id
     )
 
     if seed is None:
-        return {
-            "ujumbe": "Mbegu haikupatikana"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Mbegu haikupatikana"
+        )
 
     return seed
 
-
-# =========================================================
-# UPDATE SEED
-# =========================================================
 
 @router.put("/{seed_id}")
 def update_seed(
@@ -167,37 +180,29 @@ def update_seed(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    existing_seed = (
-        db.query(Seed)
-        .join(Crop, Seed.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Seed.id == seed_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    existing_seed = get_farmer_seed(
+        db=db,
+        seed_id=seed_id,
+        current_farmer_id=current_farmer_id
     )
 
     if existing_seed is None:
-        return {
-            "ujumbe": "Mbegu haikupatikana"
-        }
-
-    # Hakikisha crop mpya ni ya farmer huyu
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == seed.crop_id,
-            Farm.farmer_id == current_farmer_id
+        raise HTTPException(
+            status_code=404,
+            detail="Mbegu haikupatikana"
         )
-        .first()
+
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=seed.crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Huwezi kuhamisha mbegu kwenye zao ambalo si lako"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Zao jipya halikupatikana au si lako"
+        )
 
     existing_seed.jina = seed.jina
     existing_seed.aina = seed.aina
@@ -207,15 +212,19 @@ def update_seed(
     existing_seed.gharama = seed.gharama
     existing_seed.crop_id = seed.crop_id
 
-    db.commit()
-    db.refresh(existing_seed)
+    try:
+        db.commit()
+        db.refresh(existing_seed)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kusasisha mbegu"
+        )
 
     return existing_seed
 
-
-# =========================================================
-# DELETE SEED
-# =========================================================
 
 @router.delete("/{seed_id}")
 def delete_seed(
@@ -223,24 +232,28 @@ def delete_seed(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    seed = (
-        db.query(Seed)
-        .join(Crop, Seed.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Seed.id == seed_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    seed = get_farmer_seed(
+        db=db,
+        seed_id=seed_id,
+        current_farmer_id=current_farmer_id
     )
 
     if seed is None:
-        return {
-            "ujumbe": "Mbegu haikupatikana"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Mbegu haikupatikana"
+        )
 
-    db.delete(seed)
-    db.commit()
+    try:
+        db.delete(seed)
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kufuta mbegu"
+        )
 
     return {
         "ujumbe": "Mbegu imefutwa kikamilifu"
