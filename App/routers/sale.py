@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
 
 from App.database.database import SessionLocal
 from App.database.models.sale import Sale
@@ -25,12 +24,72 @@ def get_db():
         db.close()
 
 
+def get_farmer_harvest(
+    db: Session,
+    harvest_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Harvest)
+        .join(Crop, Harvest.crop_id == Crop.id)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Harvest.id == harvest_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
+
+def get_farmer_sale(
+    db: Session,
+    sale_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Sale)
+        .join(Harvest, Sale.harvest_id == Harvest.id)
+        .join(Crop, Harvest.crop_id == Crop.id)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Sale.id == sale_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
+
+def get_total_sold(
+    db: Session,
+    harvest_id: int,
+    exclude_sale_id: int | None = None
+):
+    query = (
+        db.query(Sale)
+        .filter(
+            Sale.harvest_id == harvest_id
+        )
+    )
+
+    if exclude_sale_id is not None:
+        query = query.filter(
+            Sale.id != exclude_sale_id
+        )
+
+    sales = query.all()
+
+    return sum(
+        sale.kiasi
+        for sale in sales
+    )
+
+
 @router.get("/")
 def get_sales(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    sales = (
+    return (
         db.query(Sale)
         .join(Harvest, Sale.harvest_id == Harvest.id)
         .join(Crop, Harvest.crop_id == Crop.id)
@@ -38,10 +97,12 @@ def get_sales(
         .filter(
             Farm.farmer_id == current_farmer_id
         )
+        .order_by(
+            Sale.tarehe.asc(),
+            Sale.id.asc()
+        )
         .all()
     )
-
-    return sales
 
 
 @router.post("/")
@@ -50,21 +111,16 @@ def create_sale(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    harvest = (
-        db.query(Harvest)
-        .join(Crop, Harvest.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Harvest.id == sale.harvest_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    harvest = get_farmer_harvest(
+        db=db,
+        harvest_id=sale.harvest_id,
+        current_farmer_id=current_farmer_id
     )
 
     if harvest is None:
         raise HTTPException(
             status_code=404,
-            detail="Mavuno hayakupatikana"
+            detail="Mavuno hayakupatikana au si yako"
         )
 
     if sale.unit != harvest.unit:
@@ -73,17 +129,9 @@ def create_sale(
             detail="Unit ya mauzo lazima ifanane na unit ya mavuno"
         )
 
-    sold_quantity = (
-        db.query(Sale)
-        .filter(
-            Sale.harvest_id == sale.harvest_id
-        )
-        .all()
-    )
-
-    total_sold = sum(
-        existing_sale.kiasi
-        for existing_sale in sold_quantity
+    total_sold = get_total_sold(
+        db=db,
+        harvest_id=sale.harvest_id
     )
 
     remaining_quantity = harvest.kiasi - total_sold
@@ -93,7 +141,8 @@ def create_sale(
             status_code=400,
             detail=(
                 f"Huwezi kuuza kiasi hiki. "
-                f"Mavuno yaliyobaki ni {remaining_quantity} {harvest.unit}"
+                f"Mavuno yaliyobaki ni "
+                f"{remaining_quantity} {harvest.unit}"
             )
         )
 
@@ -109,9 +158,17 @@ def create_sale(
         harvest_id=sale.harvest_id
     )
 
-    db.add(new_sale)
-    db.commit()
-    db.refresh(new_sale)
+    try:
+        db.add(new_sale)
+        db.commit()
+        db.refresh(new_sale)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kuhifadhi mauzo"
+        )
 
     return new_sale
 
@@ -122,27 +179,26 @@ def get_harvest_sales(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    harvest = (
-        db.query(Harvest)
-        .join(Crop, Harvest.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Harvest.id == harvest_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    harvest = get_farmer_harvest(
+        db=db,
+        harvest_id=harvest_id,
+        current_farmer_id=current_farmer_id
     )
 
     if harvest is None:
         raise HTTPException(
             status_code=404,
-            detail="Mavuno hayakupatikana"
+            detail="Mavuno hayakupatikana au si yako"
         )
 
     sales = (
         db.query(Sale)
         .filter(
             Sale.harvest_id == harvest_id
+        )
+        .order_by(
+            Sale.tarehe.asc(),
+            Sale.id.asc()
         )
         .all()
     )
@@ -176,16 +232,10 @@ def get_sale(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    sale = (
-        db.query(Sale)
-        .join(Harvest, Sale.harvest_id == Harvest.id)
-        .join(Crop, Harvest.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Sale.id == sale_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    sale = get_farmer_sale(
+        db=db,
+        sale_id=sale_id,
+        current_farmer_id=current_farmer_id
     )
 
     if sale is None:
@@ -204,16 +254,10 @@ def update_sale(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    existing_sale = (
-        db.query(Sale)
-        .join(Harvest, Sale.harvest_id == Harvest.id)
-        .join(Crop, Harvest.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Sale.id == sale_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    existing_sale = get_farmer_sale(
+        db=db,
+        sale_id=sale_id,
+        current_farmer_id=current_farmer_id
     )
 
     if existing_sale is None:
@@ -222,21 +266,16 @@ def update_sale(
             detail="Mauzo hayakupatikana"
         )
 
-    harvest = (
-        db.query(Harvest)
-        .join(Crop, Harvest.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Harvest.id == sale.harvest_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    harvest = get_farmer_harvest(
+        db=db,
+        harvest_id=sale.harvest_id,
+        current_farmer_id=current_farmer_id
     )
 
     if harvest is None:
         raise HTTPException(
             status_code=404,
-            detail="Mavuno hayakupatikana"
+            detail="Mavuno hayakupatikana au si yako"
         )
 
     if sale.unit != harvest.unit:
@@ -245,29 +284,21 @@ def update_sale(
             detail="Unit ya mauzo lazima ifanane na unit ya mavuno"
         )
 
-    other_sales = (
-        db.query(Sale)
-        .filter(
-            Sale.harvest_id == sale.harvest_id,
-            Sale.id != sale_id
-        )
-        .all()
+    total_other_sold = get_total_sold(
+        db=db,
+        harvest_id=sale.harvest_id,
+        exclude_sale_id=sale_id
     )
 
-    total_other_sold = sum(
-        existing.kiasi
-        for existing in other_sales
-    )
+    remaining_quantity = harvest.kiasi - total_other_sold
 
-    remaining_for_update = harvest.kiasi - total_other_sold
-
-    if sale.kiasi > remaining_for_update:
+    if sale.kiasi > remaining_quantity:
         raise HTTPException(
             status_code=400,
             detail=(
                 f"Huwezi kuweka kiasi hiki. "
                 f"Kiasi kinachoweza kuuzwa ni "
-                f"{remaining_for_update} {harvest.unit}"
+                f"{remaining_quantity} {harvest.unit}"
             )
         )
 
@@ -279,8 +310,16 @@ def update_sale(
     existing_sale.maelezo = sale.maelezo
     existing_sale.harvest_id = sale.harvest_id
 
-    db.commit()
-    db.refresh(existing_sale)
+    try:
+        db.commit()
+        db.refresh(existing_sale)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kusasisha mauzo"
+        )
 
     return existing_sale
 
@@ -291,16 +330,10 @@ def delete_sale(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    sale = (
-        db.query(Sale)
-        .join(Harvest, Sale.harvest_id == Harvest.id)
-        .join(Crop, Harvest.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Sale.id == sale_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    sale = get_farmer_sale(
+        db=db,
+        sale_id=sale_id,
+        current_farmer_id=current_farmer_id
     )
 
     if sale is None:
@@ -309,8 +342,16 @@ def delete_sale(
             detail="Mauzo hayakupatikana"
         )
 
-    db.delete(sale)
-    db.commit()
+    try:
+        db.delete(sale)
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Imeshindikana kufuta mauzo"
+        )
 
     return {
         "ujumbe": "Mauzo yamefutwa kikamilifu"
