@@ -373,16 +373,13 @@ def get_next_schedule(
             days=schedule.siku
         )
 
-        if tarehe >= leo and schedule.status != "imekamilika":
-
+        if (
+            tarehe > leo
+            and schedule.status != "imekamilika"
+        ):
             siku_zimebaki = (
                 tarehe - leo
             ).days
-
-            if tarehe == leo:
-                status = "leo"
-            else:
-                status = "inayofuata"
 
             ratiba_zijazo.append({
                 "id": schedule.id,
@@ -390,7 +387,7 @@ def get_next_schedule(
                 "siku": schedule.siku,
                 "tarehe": tarehe,
                 "siku_zimebaki": siku_zimebaki,
-                "status": status,
+                "status": "inayofuata",
                 "maelezo": schedule.maelezo,
                 "program_task_id": schedule.program_task_id
             })
@@ -401,7 +398,7 @@ def get_next_schedule(
         }
 
     ratiba_zijazo.sort(
-        key=lambda x: x["tarehe"]
+        key=lambda x: (x["tarehe"], x["id"])
     )
 
     return {
@@ -454,8 +451,10 @@ def get_upcoming_schedules(
             days=schedule.siku
         )
 
-        if tarehe >= leo and schedule.status != "imekamilika":
-
+        if (
+            tarehe >= leo
+            and schedule.status != "imekamilika"
+        ):
             siku_zimebaki = (
                 tarehe - leo
             ).days
@@ -477,7 +476,7 @@ def get_upcoming_schedules(
             })
 
     ratiba_zijazo.sort(
-        key=lambda x: x["tarehe"]
+        key=lambda x: (x["tarehe"], x["id"])
     )
 
     return {
@@ -591,6 +590,7 @@ def get_crop_dashboard(
 
     leo = date.today()
 
+    ratiba_ya_leo = []
     ratiba_zijazo = []
 
     if crop.tarehe_ya_kupanda:
@@ -604,8 +604,27 @@ def get_crop_dashboard(
                 days=schedule.siku
             )
 
-            if (
-                tarehe >= leo
+            # -----------------------------
+            # RATIBA YA LEO
+            # -----------------------------
+
+            if tarehe == leo:
+                ratiba_ya_leo.append({
+                    "zao": crop.jina,
+                    "jina": schedule.jina,
+                    "siku": schedule.siku,
+                    "tarehe": tarehe,
+                    "siku_zimebaki": 0,
+                    "status": "leo",
+                    "maelezo": schedule.maelezo
+                })
+
+            # -----------------------------
+            # RATIBA ZIJAZO
+            # -----------------------------
+
+            elif (
+                tarehe > leo
                 and schedule.status != "imekamilika"
             ):
                 siku_zimebaki = (
@@ -618,12 +637,31 @@ def get_crop_dashboard(
                     "siku": schedule.siku,
                     "tarehe": tarehe,
                     "siku_zimebaki": siku_zimebaki,
-                    "status": schedule.status,
+                    "status": "inayofuata",
                     "maelezo": schedule.maelezo
                 })
 
     ratiba_zijazo.sort(
-        key=lambda x: x["tarehe"]
+        key=lambda x: (x["tarehe"], x["jina"])
+    )
+
+    ratiba_ya_leo.sort(
+        key=lambda x: x["jina"]
+    )
+
+    # Ratiba ya kwanza baada ya leo ndiyo
+    # "inayofuata". Zingine zinabaki kwenye
+    # "zijazo" bila duplicate.
+    ratiba_inayofuata = (
+        ratiba_zijazo[0]
+        if ratiba_zijazo
+        else None
+    )
+
+    ratiba_zingine = (
+        ratiba_zijazo[1:]
+        if len(ratiba_zijazo) > 1
+        else []
     )
 
     # -----------------------------------------------------
@@ -632,6 +670,8 @@ def get_crop_dashboard(
 
     reminders = db.query(Reminder).filter(
         Reminder.crop_id == crop_id
+    ).order_by(
+        Reminder.tarehe.asc()
     ).all()
 
     # -----------------------------------------------------
@@ -748,12 +788,8 @@ def get_crop_dashboard(
         },
 
         "ratiba": {
-            "inayofuata": (
-                ratiba_zijazo[0]
-                if ratiba_zijazo
-                else None
-            ),
-            "zijazo": ratiba_zijazo
+            "inayofuata": ratiba_inayofuata,
+            "zijazo": ratiba_zingine
         },
 
         "reminders": reminders,

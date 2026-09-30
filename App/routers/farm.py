@@ -227,8 +227,6 @@ def get_farm_dashboard(
 
         for schedule in schedules:
 
-            # Schedule isiyokuwa na siku haiwezi
-            # kuhesabiwa tarehe yake.
             if schedule.siku is None:
                 continue
 
@@ -240,32 +238,28 @@ def get_farm_dashboard(
             # RATIBA YA LEO
             # -----------------------------
 
-            if tarehe == leo:
-
+            if (
+                tarehe == leo
+                and schedule.status != "imekamilika"
+            ):
                 ratiba_ya_leo.append({
                     "zao": crop.jina,
                     "jina": schedule.jina,
                     "siku": schedule.siku,
                     "tarehe": tarehe,
                     "siku_zimebaki": 0,
-                    "status": schedule.status,
+                    "status": "leo",
                     "maelezo": schedule.maelezo
                 })
 
             # -----------------------------
             # RATIBA ZIJAZO
             # -----------------------------
-            #
-            # Tarehe ya leo haingii hapa.
-            # Ratiba ya leo inaenda kwenye
-            # ratiba_ya_leo pekee.
-            # -----------------------------
 
-            if (
+            elif (
                 tarehe > leo
                 and schedule.status != "imekamilika"
             ):
-
                 siku_zimebaki = (
                     tarehe - leo
                 ).days
@@ -276,17 +270,33 @@ def get_farm_dashboard(
                     "siku": schedule.siku,
                     "tarehe": tarehe,
                     "siku_zimebaki": siku_zimebaki,
-                    "status": schedule.status,
+                    "status": "inayofuata",
                     "maelezo": schedule.maelezo
                 })
 
-    # Panga ratiba kuanzia tarehe ya karibu
+    # Panga ratiba kuanzia tarehe ya karibu.
+    # ID inasaidia kutoa mpangilio thabiti
+    # pale ratiba mbili zina tarehe sawa.
     ratiba_zijazo.sort(
-        key=lambda x: x["tarehe"]
+        key=lambda x: (x["tarehe"], x["jina"])
     )
 
     ratiba_ya_leo.sort(
         key=lambda x: x["jina"]
+    )
+
+    # Ratiba ya kwanza ndiyo "inayofuata".
+    # Zingine zinaingia "zijazo" bila duplicate.
+    ratiba_inayofuata = (
+        ratiba_zijazo[0]
+        if ratiba_zijazo
+        else None
+    )
+
+    ratiba_zingine = (
+        ratiba_zijazo[1:]
+        if len(ratiba_zijazo) > 1
+        else []
     )
 
     # -----------------------------------------------------
@@ -334,12 +344,8 @@ def get_farm_dashboard(
         },
 
         "ratiba": {
-            "inayofuata": (
-                ratiba_zijazo[0]
-                if ratiba_zijazo
-                else None
-            ),
-            "zijazo": ratiba_zijazo
+            "inayofuata": ratiba_inayofuata,
+            "zijazo": ratiba_zingine
         },
 
         "ratiba_ya_leo": ratiba_ya_leo,
