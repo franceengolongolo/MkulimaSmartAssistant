@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from App.database.database import SessionLocal
@@ -27,6 +27,73 @@ def get_db():
         db.close()
 
 
+def calculate_schedule_status(
+    crop: Crop,
+    siku: int | None,
+    current_status: str | None = None
+) -> str:
+    """
+    Hesabu status ya schedule kulingana na tarehe ya kupanda.
+
+    Kama schedule tayari imekamilika, status yake inalindwa
+    na haibadilishwi.
+    """
+
+    if current_status == "imekamilika":
+        return "imekamilika"
+
+    if crop.tarehe_ya_kupanda is None or siku is None:
+        return "inayofuata"
+
+    tarehe_ratiba = (
+        crop.tarehe_ya_kupanda
+        + timedelta(days=siku)
+    )
+
+    leo = date.today()
+
+    if tarehe_ratiba == leo:
+        return "leo"
+
+    if tarehe_ratiba > leo:
+        return "inayofuata"
+
+    return "imepita"
+
+
+def get_farmer_schedule(
+    db: Session,
+    schedule_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Schedule)
+        .join(Crop, Schedule.crop_id == Crop.id)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Schedule.id == schedule_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
+
+def get_farmer_crop(
+    db: Session,
+    crop_id: int,
+    current_farmer_id: int
+):
+    return (
+        db.query(Crop)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Crop.id == crop_id,
+            Farm.farmer_id == current_farmer_id
+        )
+        .first()
+    )
+
+
 # =========================================================
 # UPDATE STATUS ZA RATIBA
 # =========================================================
@@ -39,7 +106,7 @@ def update_schedule_status(
     leo = date.today()
 
     schedules = (
-        db.query(Schedule, Crop)
+        db.query(Schedule)
         .join(Crop, Schedule.crop_id == Crop.id)
         .join(Farm, Crop.farm_id == Farm.id)
         .filter(
@@ -48,32 +115,21 @@ def update_schedule_status(
         .all()
     )
 
-    for schedule, crop in schedules:
+    try:
+        for schedule in schedules:
+            crop = schedule.crop
 
-        if (
-            crop.tarehe_ya_kupanda is None
-            or schedule.siku is None
-        ):
-            continue
+            schedule.status = calculate_schedule_status(
+                crop=crop,
+                siku=schedule.siku,
+                current_status=schedule.status
+            )
 
-        if schedule.status == "imekamilika":
-            continue
+        db.commit()
 
-        tarehe_ratiba = (
-            crop.tarehe_ya_kupanda
-            + timedelta(days=schedule.siku)
-        )
-
-        if tarehe_ratiba == leo:
-            schedule.status = "leo"
-
-        elif tarehe_ratiba > leo:
-            schedule.status = "inayofuata"
-
-        else:
-            schedule.status = "imepita"
-
-    db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "ujumbe": "Status za ratiba zimesasishwa",
@@ -91,26 +147,26 @@ def complete_schedule(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    schedule = (
-        db.query(Schedule)
-        .join(Crop, Schedule.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Schedule.id == schedule_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    schedule = get_farmer_schedule(
+        db=db,
+        schedule_id=schedule_id,
+        current_farmer_id=current_farmer_id
     )
 
     if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ratiba haikupatikana"
+        )
+
+    if schedule.status == "imekamilika":
         return {
-            "ujumbe": "Ratiba haikupatikana"
+            "ujumbe": "Ratiba hii tayari imekamilika",
+            "ratiba": schedule
         }
 
     schedule.status = "imekamilika"
 
-    # Kama kuna reminder inayohusiana na ratiba hii,
-    # nayo iwekwe imekamilika.
     reminder = (
         db.query(Reminder)
         .filter(
@@ -122,8 +178,13 @@ def complete_schedule(
     if reminder is not None:
         reminder.hali = "imekamilika"
 
-    db.commit()
-    db.refresh(schedule)
+    try:
+        db.commit()
+        db.refresh(schedule)
+
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "ujumbe": "Ratiba imekamilika",
@@ -147,6 +208,10 @@ def get_schedules(
         .filter(
             Farm.farmer_id == current_farmer_id
         )
+        .order_by(
+            Schedule.siku.asc(),
+            Schedule.id.asc()
+        )
         .all()
     )
 
@@ -157,50 +222,47 @@ def get_schedules(
 # CREATE RATIBA
 # =========================================================
 
-@router.post("/")
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED
+)
 def create_schedule(
     schedule: ScheduleCreate,
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    # Hakikisha crop ni ya farmer aliye-login
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == schedule.crop_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=schedule.crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Zao halikupatikana au si lako"
-        }
-
-    if schedule.siku is None:
-        return {
-            "ujumbe": "Idadi ya siku za ratiba inahitajika"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Zao halikupatikana au si lako"
+        )
 
     new_schedule = Schedule(
         jina=schedule.jina,
         maelezo=schedule.maelezo,
         siku=schedule.siku,
         crop_id=schedule.crop_id,
-        status="inayofuata"
+        status=calculate_schedule_status(
+            crop=crop,
+            siku=schedule.siku
+        )
     )
 
     db.add(new_schedule)
 
     try:
-        # Schedule ipate ID kwanza
+        # Schedule ipate ID kwanza.
         db.flush()
 
-        # Tengeneza Reminder automatically
-        if crop.tarehe_ya_kupanda:
-
+        # Tengeneza Reminder automatically kama
+        # crop ina tarehe ya kupanda.
+        if crop.tarehe_ya_kupanda is not None:
             tarehe_reminder = (
                 crop.tarehe_ya_kupanda
                 + timedelta(days=schedule.siku)
@@ -234,21 +296,17 @@ def get_schedule(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    schedule = (
-        db.query(Schedule)
-        .join(Crop, Schedule.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Schedule.id == schedule_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    schedule = get_farmer_schedule(
+        db=db,
+        schedule_id=schedule_id,
+        current_farmer_id=current_farmer_id
     )
 
     if schedule is None:
-        return {
-            "ujumbe": "Ratiba haikupatikana"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ratiba haikupatikana"
+        )
 
     return schedule
 
@@ -264,75 +322,44 @@ def update_schedule(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    existing_schedule = (
-        db.query(Schedule)
-        .join(Crop, Schedule.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Schedule.id == schedule_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    existing_schedule = get_farmer_schedule(
+        db=db,
+        schedule_id=schedule_id,
+        current_farmer_id=current_farmer_id
     )
 
     if existing_schedule is None:
-        return {
-            "ujumbe": "Ratiba haikupatikana"
-        }
-
-    if schedule.siku is None:
-        return {
-            "ujumbe": "Idadi ya siku za ratiba inahitajika"
-        }
-
-    # Hakikisha crop mpya ni ya farmer huyu
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == schedule.crop_id,
-            Farm.farmer_id == current_farmer_id
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ratiba haikupatikana"
         )
-        .first()
+
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=schedule.crop_id,
+        current_farmer_id=current_farmer_id
     )
 
     if crop is None:
-        return {
-            "ujumbe": "Zao jipya halikupatikana au si lako"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Zao jipya halikupatikana au si lako"
+        )
 
     existing_schedule.jina = schedule.jina
     existing_schedule.maelezo = schedule.maelezo
     existing_schedule.siku = schedule.siku
     existing_schedule.crop_id = schedule.crop_id
 
-    # Update status kulingana na tarehe mpya
-    if existing_schedule.status != "imekamilika":
-
-        if crop.tarehe_ya_kupanda:
-
-            tarehe_ratiba = (
-                crop.tarehe_ya_kupanda
-                + timedelta(days=schedule.siku)
-            )
-
-            leo = date.today()
-
-            if tarehe_ratiba == leo:
-                existing_schedule.status = "leo"
-
-            elif tarehe_ratiba > leo:
-                existing_schedule.status = "inayofuata"
-
-            else:
-                existing_schedule.status = "imepita"
-
-        else:
-            existing_schedule.status = "inayofuata"
+    existing_schedule.status = calculate_schedule_status(
+        crop=crop,
+        siku=schedule.siku,
+        current_status=existing_schedule.status
+    )
 
     try:
-        # Tafuta reminder inayohusiana moja kwa moja
-        # na schedule hii.
+        # Tafuta Reminder inayohusiana moja kwa moja
+        # na Schedule hii.
         reminder = (
             db.query(Reminder)
             .filter(
@@ -342,26 +369,18 @@ def update_schedule(
         )
 
         if reminder is not None:
-
             reminder.ujumbe = schedule.jina
             reminder.crop_id = schedule.crop_id
 
-            if crop.tarehe_ya_kupanda:
-
+            if crop.tarehe_ya_kupanda is not None:
                 reminder.tarehe = (
                     crop.tarehe_ya_kupanda
                     + timedelta(days=schedule.siku)
                 )
 
-            else:
-                # Kama hakuna tarehe ya kupanda,
-                # hatuwezi kuhesabu tarehe ya reminder.
-                reminder.tarehe = reminder.tarehe
-
-        elif crop.tarehe_ya_kupanda:
-
-            # Kama schedule ya zamani haina reminder,
-            # tengeneza mpya.
+        elif crop.tarehe_ya_kupanda is not None:
+            # Schedule haina Reminder lakini sasa inaweza
+            # kupata tarehe ya Reminder.
             tarehe_reminder = (
                 crop.tarehe_ya_kupanda
                 + timedelta(days=schedule.siku)
@@ -395,24 +414,20 @@ def delete_schedule(
     db: Session = Depends(get_db),
     current_farmer_id: int = Depends(get_current_farmer)
 ):
-    schedule = (
-        db.query(Schedule)
-        .join(Crop, Schedule.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Schedule.id == schedule_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    schedule = get_farmer_schedule(
+        db=db,
+        schedule_id=schedule_id,
+        current_farmer_id=current_farmer_id
     )
 
     if schedule is None:
-        return {
-            "ujumbe": "Ratiba haikupatikana"
-        }
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ratiba haikupatikana"
+        )
 
     try:
-        # Futa reminder inayohusiana kwanza
+        # Futa Reminder inayohusiana kwanza.
         reminder = (
             db.query(Reminder)
             .filter(

@@ -5,42 +5,70 @@ from sqlalchemy.orm import Session
 
 from App.database.database import SessionLocal
 from App.database.models.reminder import Reminder
+from App.database.models.schedule import Schedule
 from App.database.models.crop import Crop
 from App.database.models.farm import Farm
 from App.schemas.reminder import ReminderCreate
 from App.services.auth_service import get_current_farmer
-
 from App.services.notification_service import (
     get_today_notifications,
     get_overdue_notifications,
-    get_upcoming_notifications
+    get_upcoming_notifications,
 )
 
 
 router = APIRouter(
     prefix="/reminders",
-    tags=["Reminders"]
+    tags=["Reminders"],
 )
 
 
 def get_db():
     db = SessionLocal()
-
     try:
         yield db
     finally:
         db.close()
 
 
-# =========================================================
-# HELPER: REMINDER + TAARIFA ZA ZAO NA SHAMBA
-# =========================================================
+def get_farmer_reminder(
+    db: Session,
+    reminder_id: int,
+    current_farmer_id: int,
+):
+    return (
+        db.query(Reminder)
+        .join(Crop, Reminder.crop_id == Crop.id)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Reminder.id == reminder_id,
+            Farm.farmer_id == current_farmer_id,
+        )
+        .first()
+    )
+
+
+def get_farmer_crop(
+    db: Session,
+    crop_id: int,
+    current_farmer_id: int,
+):
+    return (
+        db.query(Crop)
+        .join(Farm, Crop.farm_id == Farm.id)
+        .filter(
+            Crop.id == crop_id,
+            Farm.farmer_id == current_farmer_id,
+        )
+        .first()
+    )
+
 
 def reminder_to_dict(reminder: Reminder):
     """
-    Badilisha Reminder ORM kuwa dictionary.
+    Badilisha Reminder ORM kuwa dictionary
+    yenye taarifa za zao na shamba.
     """
-
     crop = reminder.crop
     farm = crop.farm if crop else None
 
@@ -49,22 +77,15 @@ def reminder_to_dict(reminder: Reminder):
         "tarehe": reminder.tarehe,
         "ujumbe": reminder.ujumbe,
         "hali": reminder.hali,
-
         "crop_id": reminder.crop_id,
         "zao": getattr(crop, "jina", None) if crop else None,
-
         "farm_id": getattr(crop, "farm_id", None) if crop else None,
         "shamba": getattr(farm, "jina", None) if farm else None,
-
-        "schedule_id": reminder.schedule_id
+        "schedule_id": reminder.schedule_id,
     }
 
 
 def reminders_to_dict(reminders):
-    """
-    Badilisha list ya Reminder ORM kuwa list ya dictionaries.
-    """
-
     return [
         reminder_to_dict(reminder)
         for reminder in reminders
@@ -77,34 +98,30 @@ def reminders_to_dict(reminders):
 
 @router.post(
     "/",
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
 )
 def create_reminder(
     reminder: ReminderCreate,
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == reminder.crop_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=reminder.crop_id,
+        current_farmer_id=current_farmer_id,
     )
 
     if crop is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Zao halikupatikana au si lako"
+            detail="Zao halikupatikana au si lako",
         )
 
     new_reminder = Reminder(
         ujumbe=reminder.ujumbe,
         tarehe=reminder.tarehe,
         hali="haijakamilika",
-        crop_id=reminder.crop_id
+        crop_id=reminder.crop_id,
     )
 
     db.add(new_reminder)
@@ -112,7 +129,6 @@ def create_reminder(
     try:
         db.commit()
         db.refresh(new_reminder)
-
     except Exception:
         db.rollback()
         raise
@@ -127,16 +143,19 @@ def create_reminder(
 @router.get("/")
 def get_reminders(
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
     reminders = (
         db.query(Reminder)
         .join(Crop, Reminder.crop_id == Crop.id)
         .join(Farm, Crop.farm_id == Farm.id)
         .filter(
-            Farm.farmer_id == current_farmer_id
+            Farm.farmer_id == current_farmer_id,
         )
-        .order_by(Reminder.tarehe.asc())
+        .order_by(
+            Reminder.tarehe.asc(),
+            Reminder.id.asc(),
+        )
         .all()
     )
 
@@ -150,14 +169,12 @@ def get_reminders(
 @router.get("/today")
 def get_today_reminders(
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    notifications = get_today_notifications(
+    return get_today_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
-
-    return notifications
 
 
 # =========================================================
@@ -167,14 +184,12 @@ def get_today_reminders(
 @router.get("/upcoming")
 def get_upcoming_reminders(
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    notifications = get_upcoming_notifications(
+    return get_upcoming_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
-
-    return notifications
 
 
 # =========================================================
@@ -184,7 +199,7 @@ def get_upcoming_reminders(
 @router.get("/pending")
 def get_pending_reminders(
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
     reminders = (
         db.query(Reminder)
@@ -192,9 +207,12 @@ def get_pending_reminders(
         .join(Farm, Crop.farm_id == Farm.id)
         .filter(
             Farm.farmer_id == current_farmer_id,
-            Reminder.hali != "imekamilika"
+            Reminder.hali != "imekamilika",
         )
-        .order_by(Reminder.tarehe.asc())
+        .order_by(
+            Reminder.tarehe.asc(),
+            Reminder.id.asc(),
+        )
         .all()
     )
 
@@ -208,21 +226,21 @@ def get_pending_reminders(
 @router.get("/dashboard")
 def get_reminder_dashboard(
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
     leo = get_today_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
 
     zilizopita = get_overdue_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
 
     zinazokuja = get_upcoming_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
 
     zilizokamilika = (
@@ -231,28 +249,29 @@ def get_reminder_dashboard(
         .join(Farm, Crop.farm_id == Farm.id)
         .filter(
             Farm.farmer_id == current_farmer_id,
-            Reminder.hali == "imekamilika"
+            Reminder.hali == "imekamilika",
         )
-        .order_by(Reminder.tarehe.desc())
+        .order_by(
+            Reminder.tarehe.desc(),
+            Reminder.id.desc(),
+        )
         .all()
     )
 
     return {
         "tarehe_ya_leo": date.today(),
-
         "idadi": {
             "leo": len(leo),
             "zinazokuja": len(zinazokuja),
             "zilizopita": len(zilizopita),
-            "zilizokamilika": len(zilizokamilika)
+            "zilizokamilika": len(zilizokamilika),
         },
-
         "reminders": {
             "leo": leo,
             "zinazokuja": zinazokuja,
             "zilizopita": zilizopita,
-            "zilizokamilika": reminders_to_dict(zilizokamilika)
-        }
+            "zilizokamilika": reminders_to_dict(zilizokamilika),
+        },
     }
 
 
@@ -263,26 +282,25 @@ def get_reminder_dashboard(
 @router.get("/notifications/automatic")
 def get_automatic_notifications(
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
     leo = get_today_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
 
     zilizopita = get_overdue_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
 
     zinazokuja = get_upcoming_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
 
     return {
         "tarehe_ya_leo": date.today(),
-
         "idadi": {
             "leo": len(leo),
             "zilizopita": len(zilizopita),
@@ -291,14 +309,13 @@ def get_automatic_notifications(
                 len(leo)
                 + len(zilizopita)
                 + len(zinazokuja)
-            )
+            ),
         },
-
         "notifications": {
             "leo": leo,
             "zilizopita": zilizopita,
-            "zinazokuja": zinazokuja
-        }
+            "zinazokuja": zinazokuja,
+        },
     }
 
 
@@ -309,14 +326,12 @@ def get_automatic_notifications(
 @router.get("/notifications/today")
 def get_today_notifications_endpoint(
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    notifications = get_today_notifications(
+    return get_today_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
-
-    return notifications
 
 
 # =========================================================
@@ -326,14 +341,12 @@ def get_today_notifications_endpoint(
 @router.get("/notifications/overdue")
 def get_overdue_notifications_endpoint(
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    notifications = get_overdue_notifications(
+    return get_overdue_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
-
-    return notifications
 
 
 # =========================================================
@@ -343,14 +356,12 @@ def get_overdue_notifications_endpoint(
 @router.get("/notifications/upcoming")
 def get_upcoming_notifications_endpoint(
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    notifications = get_upcoming_notifications(
+    return get_upcoming_notifications(
         db,
-        current_farmer_id
+        current_farmer_id,
     )
-
-    return notifications
 
 
 # =========================================================
@@ -361,23 +372,18 @@ def get_upcoming_notifications_endpoint(
 def get_reminder(
     reminder_id: int,
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    reminder = (
-        db.query(Reminder)
-        .join(Crop, Reminder.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Reminder.id == reminder_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    reminder = get_farmer_reminder(
+        db=db,
+        reminder_id=reminder_id,
+        current_farmer_id=current_farmer_id,
     )
 
     if reminder is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Kikumbusho hakikupatikana"
+            detail="Kikumbusho hakikupatikana",
         )
 
     return reminder_to_dict(reminder)
@@ -391,44 +397,50 @@ def get_reminder(
 def complete_reminder(
     reminder_id: int,
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    reminder = (
-        db.query(Reminder)
-        .join(Crop, Reminder.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Reminder.id == reminder_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    reminder = get_farmer_reminder(
+        db=db,
+        reminder_id=reminder_id,
+        current_farmer_id=current_farmer_id,
     )
 
     if reminder is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Kikumbusho hakikupatikana"
+            detail="Kikumbusho hakikupatikana",
         )
 
     if reminder.hali == "imekamilika":
         return {
             "ujumbe": "Kikumbusho hiki tayari kimekamilika",
-            "kikumbusho": reminder_to_dict(reminder)
+            "kikumbusho": reminder_to_dict(reminder),
         }
 
     reminder.hali = "imekamilika"
 
+    # Kama Reminder imetokana na Schedule,
+    # Schedule nayo ikamilishwe ili data ibaki synchronized.
+    if reminder.schedule_id is not None:
+        schedule = (
+            db.query(Schedule)
+            .filter(Schedule.id == reminder.schedule_id)
+            .first()
+        )
+
+        if schedule is not None:
+            schedule.status = "imekamilika"
+
     try:
         db.commit()
         db.refresh(reminder)
-
     except Exception:
         db.rollback()
         raise
 
     return {
         "ujumbe": "Kikumbusho kimekamilika",
-        "kikumbusho": reminder_to_dict(reminder)
+        "kikumbusho": reminder_to_dict(reminder),
     }
 
 
@@ -440,23 +452,29 @@ def complete_reminder(
 def delete_reminder(
     reminder_id: int,
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    reminder = (
-        db.query(Reminder)
-        .join(Crop, Reminder.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Reminder.id == reminder_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    reminder = get_farmer_reminder(
+        db=db,
+        reminder_id=reminder_id,
+        current_farmer_id=current_farmer_id,
     )
 
     if reminder is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Kikumbusho hakikupatikana"
+            detail="Kikumbusho hakikupatikana",
+        )
+
+    # Reminder iliyotengenezwa na Schedule
+    # ifutwe kupitia Schedule yake.
+    if reminder.schedule_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Kikumbusho hiki kinahusiana na ratiba. "
+                "Futa ratiba yake badala ya kufuta kikumbusho moja kwa moja"
+            ),
         )
 
     reminder_info = reminder_to_dict(reminder)
@@ -464,14 +482,13 @@ def delete_reminder(
     try:
         db.delete(reminder)
         db.commit()
-
     except Exception:
         db.rollback()
         raise
 
     return {
         "ujumbe": "Kikumbusho kimefutwa",
-        "kikumbusho": reminder_info
+        "kikumbusho": reminder_info,
     }
 
 
@@ -484,39 +501,41 @@ def update_reminder(
     reminder_id: int,
     reminder_data: ReminderCreate,
     db: Session = Depends(get_db),
-    current_farmer_id: int = Depends(get_current_farmer)
+    current_farmer_id: int = Depends(get_current_farmer),
 ):
-    reminder = (
-        db.query(Reminder)
-        .join(Crop, Reminder.crop_id == Crop.id)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Reminder.id == reminder_id,
-            Farm.farmer_id == current_farmer_id
-        )
-        .first()
+    reminder = get_farmer_reminder(
+        db=db,
+        reminder_id=reminder_id,
+        current_farmer_id=current_farmer_id,
     )
 
     if reminder is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Kikumbusho hakikupatikana"
+            detail="Kikumbusho hakikupatikana",
         )
 
-    crop = (
-        db.query(Crop)
-        .join(Farm, Crop.farm_id == Farm.id)
-        .filter(
-            Crop.id == reminder_data.crop_id,
-            Farm.farmer_id == current_farmer_id
+    # Reminder iliyotengenezwa na Schedule
+    # inadhibitiwa na Schedule yake.
+    if reminder.schedule_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Kikumbusho hiki kinahusiana na ratiba. "
+                "Badilisha ratiba yake badala ya kubadilisha kikumbusho moja kwa moja"
+            ),
         )
-        .first()
+
+    crop = get_farmer_crop(
+        db=db,
+        crop_id=reminder_data.crop_id,
+        current_farmer_id=current_farmer_id,
     )
 
     if crop is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Zao jipya halikupatikana au si lako"
+            detail="Zao jipya halikupatikana au si lako",
         )
 
     reminder.ujumbe = reminder_data.ujumbe
@@ -526,12 +545,11 @@ def update_reminder(
     try:
         db.commit()
         db.refresh(reminder)
-
     except Exception:
         db.rollback()
         raise
 
     return {
         "ujumbe": "Kikumbusho kimesasishwa",
-        "kikumbusho": reminder_to_dict(reminder)
+        "kikumbusho": reminder_to_dict(reminder),
     }
