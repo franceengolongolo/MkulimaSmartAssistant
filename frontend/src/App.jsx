@@ -8,6 +8,7 @@ getSchedules,
 getCosts,
 getProfitLoss,
 getReminderDashboard,
+createFarmer,
 createFarm,
 createCrop,
 generateCropProgramSchedules,
@@ -167,6 +168,11 @@ function App() {
 const [step, setStep] = useState('phone')
 const [simu, setSimu] = useState('')
 const [code, setCode] = useState('')
+const [farmerRegistration, setFarmerRegistration] = useState({
+jina: '',
+simu: '',
+eneo: '',
+})
 const [loading, setLoading] = useState(false)
 const [dashboardLoading, setDashboardLoading] = useState(false)
 const [scheduleLoading, setScheduleLoading] = useState(false)
@@ -398,6 +404,39 @@ try {
   setLoading(false)
 }
 
+}
+
+function handleFarmerRegistrationChange(event) {
+const { name, value } = event.target
+
+setFarmerRegistration((previous) => ({
+  ...previous,
+  [name]: value,
+}))
+}
+
+async function handleRegisterFarmer(event) {
+event.preventDefault()
+
+setError('')
+setMessage('')
+setLoading(true)
+
+try {
+  await createFarmer({
+    jina: farmerRegistration.jina.trim(),
+    simu: farmerRegistration.simu.trim(),
+    eneo: farmerRegistration.eneo.trim(),
+  })
+
+  setSimu(farmerRegistration.simu.trim())
+  setStep('phone')
+  setMessage('Usajili umefanikiwa. Ingia kwa kutumia namba yako ya simu.')
+} catch (err) {
+  setError(err.message)
+} finally {
+  setLoading(false)
+}
 }
 
 async function handleVerifyOtp(event) {
@@ -3242,28 +3281,99 @@ return ( <div className="app"> <main className="auth-container"> <section classN
       </p>
 
       {step === 'phone' && (
-        <form onSubmit={handleRequestOtp}>
+        <>
+          <form onSubmit={handleRequestOtp}>
+            <h2>
+              Ingia kwenye mfumo
+            </h2>
+
+            <p>
+              Weka namba yako ya simu ili
+              kuendelea.
+            </p>
+
+            <label htmlFor="simu">
+              Namba ya simu
+            </label>
+
+            <input
+              id="simu"
+              type="tel"
+              value={simu}
+              onChange={(event) =>
+                setSimu(event.target.value)
+              }
+              placeholder="0712345678"
+              required
+            />
+
+            <button
+              type="submit"
+              className="btn-primary auth-button"
+              disabled={loading}
+            >
+              {loading
+                ? 'INATUMA...'
+                : 'TUMA OTP'}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            className="btn-secondary auth-button"
+            onClick={() => {
+              setError('')
+              setMessage('')
+              setStep('register')
+            }}
+          >
+            JISAJILI KAMA MKULIMA
+          </button>
+        </>
+      )}
+
+      {step === 'register' && (
+        <form onSubmit={handleRegisterFarmer}>
           <h2>
-            Ingia kwenye mfumo
+            Usajili wa Mkulima
           </h2>
 
-          <p>
-            Weka namba yako ya simu ili
-            kuendelea.
-          </p>
+          <label htmlFor="registration-jina">
+            Jina la mkulima
+          </label>
 
-          <label htmlFor="simu">
+          <input
+            id="registration-jina"
+            name="jina"
+            type="text"
+            value={farmerRegistration.jina}
+            onChange={handleFarmerRegistrationChange}
+            required
+          />
+
+          <label htmlFor="registration-simu">
             Namba ya simu
           </label>
 
           <input
-            id="simu"
+            id="registration-simu"
+            name="simu"
             type="tel"
-            value={simu}
-            onChange={(event) =>
-              setSimu(event.target.value)
-            }
-            placeholder="0712345678"
+            value={farmerRegistration.simu}
+            onChange={handleFarmerRegistrationChange}
+            required
+          />
+
+          <label htmlFor="registration-eneo">
+            Eneo
+          </label>
+
+          <input
+            id="registration-eneo"
+            name="eneo"
+            type="text"
+            value={farmerRegistration.eneo}
+            onChange={handleFarmerRegistrationChange}
             required
           />
 
@@ -3272,9 +3382,19 @@ return ( <div className="app"> <main className="auth-container"> <section classN
             className="btn-primary auth-button"
             disabled={loading}
           >
-            {loading
-              ? 'INATUMA...'
-              : 'TUMA OTP'}
+            {loading ? 'INASAJILI...' : 'JISAJILI'}
+          </button>
+
+          <button
+            type="button"
+            className="btn-secondary auth-button"
+            onClick={() => {
+              setError('')
+              setMessage('')
+              setStep('phone')
+            }}
+          >
+            RUDI KWENYE KUINGIA
           </button>
         </form>
       )}

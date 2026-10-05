@@ -83,6 +83,18 @@ export async function verifyOtp(simu, code) {
 
 
 /* =========================
+   FARMERS / REGISTRATION
+========================= */
+
+export async function createFarmer(farmerData) {
+  return apiRequest('/farmers/', {
+    method: 'POST',
+    body: JSON.stringify(farmerData),
+  })
+}
+
+
+/* =========================
    CROPS
 ========================= */
 
@@ -154,6 +166,7 @@ export async function getProgramSources() {
   return apiRequest('/program-sources/')
 }
 
+
 /* =========================
    SCHEDULES
 ========================= */
@@ -161,6 +174,7 @@ export async function getProgramSources() {
 export async function getSchedules() {
   return apiRequest('/schedules/')
 }
+
 
 /* =========================
    COSTS
@@ -170,6 +184,7 @@ export async function getCosts() {
   return apiRequest('/costs/')
 }
 
+
 /* =========================
    PROFIT / LOSS
 ========================= */
@@ -177,6 +192,8 @@ export async function getCosts() {
 export async function getProfitLoss(cropId) {
   return apiRequest(`/profit-loss/crop/${cropId}`)
 }
+
+
 /* =========================
    REMINDERS / NOTIFICATIONS
 ========================= */
@@ -184,6 +201,7 @@ export async function getProfitLoss(cropId) {
 export async function getReminderDashboard() {
   return apiRequest('/reminders/dashboard')
 }
+
 
 /* =========================
    FARMS
@@ -193,12 +211,14 @@ export async function getFarms() {
   return apiRequest('/farms/')
 }
 
+
 export async function createFarm(farmData) {
   return apiRequest('/farms/', {
     method: 'POST',
     body: JSON.stringify(farmData),
   })
 }
+
 
 /* =========================
    CREATE CROP
@@ -210,6 +230,7 @@ export async function createCrop(cropData) {
     body: JSON.stringify(cropData),
   })
 }
+
 
 /* =========================
    GENERATE CROP SCHEDULES
