@@ -184,3 +184,39 @@ export async function getProfitLoss(cropId) {
 export async function getReminderDashboard() {
   return apiRequest('/reminders/dashboard')
 }
+
+/* =========================
+   FARMS
+========================= */
+
+export async function getFarms() {
+  return apiRequest('/farms/')
+}
+
+export async function createFarm(farmData) {
+  return apiRequest('/farms/', {
+    method: 'POST',
+    body: JSON.stringify(farmData),
+  })
+}
+
+/* =========================
+   CREATE CROP
+========================= */
+
+export async function createCrop(cropData) {
+  return apiRequest('/crops/', {
+    method: 'POST',
+    body: JSON.stringify(cropData),
+  })
+}
+
+/* =========================
+   GENERATE CROP SCHEDULES
+========================= */
+
+export async function generateCropProgramSchedules(cropId) {
+  return apiRequest(`/crops/${cropId}/generate-program-schedules`, {
+    method: 'POST',
+  })
+}

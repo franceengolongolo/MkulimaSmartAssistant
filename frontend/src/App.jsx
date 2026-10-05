@@ -8,6 +8,10 @@ getSchedules,
 getCosts,
 getProfitLoss,
 getReminderDashboard,
+createFarm,
+createCrop,
+generateCropProgramSchedules,
+getCropPrograms,
 } from './api/api'
 
 const API_BASE_URL = 'http://127.0.0.1:8000'
@@ -183,6 +187,24 @@ const [harvests, setHarvests] = useState([])
 const [profitLoss, setProfitLoss] = useState(null)
 const [reminderDashboard, setReminderDashboard] = useState(null)
 const [reminderLoading, setReminderLoading] = useState(false)
+const [farmForm, setFarmForm] = useState({
+jina: '',
+eneo: '',
+ukubwa: '',
+})
+const [cropForm, setCropForm] = useState({
+jina: '',
+aina: '',
+msimu: '',
+tarehe_ya_kupanda: '',
+program_id: '',
+})
+const [createdFarmId, setCreatedFarmId] = useState(null)
+const [cropPrograms, setCropPrograms] = useState([])
+const [farmCreationStep, setFarmCreationStep] = useState('farm')
+const [farmCreating, setFarmCreating] = useState(false)
+const [cropCreating, setCropCreating] = useState(false)
+const [cropProgramsLoading, setCropProgramsLoading] = useState(false)
 
 const [activePage, setActivePage] = useState('dashboard')
 
@@ -758,6 +780,144 @@ try {
 
 }
 
+function handleFarmFormChange(event) {
+const { name, value } = event.target
+
+setFarmForm((previous) => ({
+  ...previous,
+  [name]: value,
+}))
+
+}
+
+function handleCropFormChange(event) {
+const { name, value } = event.target
+
+setCropForm((previous) => ({
+  ...previous,
+  [name]: value,
+}))
+
+}
+
+async function openFarmCreation() {
+setError('')
+setMessage('')
+setFarmForm({ jina: '', eneo: '', ukubwa: '' })
+setCropForm({
+  jina: '',
+  aina: '',
+  msimu: '',
+  tarehe_ya_kupanda: '',
+  program_id: '',
+})
+setCreatedFarmId(null)
+setFarmCreationStep('farm')
+setActivePage('new-farm')
+setCropProgramsLoading(true)
+
+try {
+  const programs = await getCropPrograms()
+  setCropPrograms(programs)
+} catch (err) {
+  setError(`Imeshindikana kupakia programu za mazao: ${err.message}`)
+} finally {
+  setCropProgramsLoading(false)
+}
+
+}
+
+async function handleCreateFarm(event) {
+event.preventDefault()
+setError('')
+setMessage('')
+
+if (!farmForm.jina.trim() || !farmForm.eneo.trim() || farmForm.ukubwa === '') {
+  setError('Jaza jina la shamba, eneo na ukubwa wa shamba.')
+  return
+}
+
+const farmSize = Number(farmForm.ukubwa)
+
+if (!Number.isFinite(farmSize)) {
+  setError('Weka ukubwa sahihi wa shamba kwa namba.')
+  return
+}
+
+setFarmCreating(true)
+
+try {
+  const createdFarm = await createFarm({
+    jina: farmForm.jina.trim(),
+    eneo: farmForm.eneo.trim(),
+    ukubwa: farmSize,
+  })
+
+  if (createdFarm?.id === null || createdFarm?.id === undefined) {
+    throw new Error('Majibu ya seva hayana kitambulisho cha shamba.')
+  }
+
+  setCreatedFarmId(createdFarm.id)
+  setFarmCreationStep('crop')
+} catch (err) {
+  setError(`Imeshindikana kuhifadhi shamba: ${err.message}`)
+} finally {
+  setFarmCreating(false)
+}
+
+}
+
+async function handleCreateCrop(event) {
+event.preventDefault()
+setError('')
+setMessage('')
+
+if (!cropForm.jina.trim() || !cropForm.aina.trim() || !cropForm.msimu.trim()) {
+  setError('Jaza jina la zao, aina na msimu.')
+  return
+}
+
+if (createdFarmId === null || createdFarmId === undefined) {
+  setError('Taarifa za shamba hazijapatikana. Anza tena kwa kuhifadhi shamba.')
+  return
+}
+
+setCropCreating(true)
+
+try {
+  const programId = cropForm.program_id
+    ? Number(cropForm.program_id)
+    : null
+  const createdCrop = await createCrop({
+    jina: cropForm.jina.trim(),
+    aina: cropForm.aina.trim(),
+    msimu: cropForm.msimu.trim(),
+    farm_id: createdFarmId,
+    tarehe_ya_kupanda: cropForm.tarehe_ya_kupanda || null,
+    program_id: programId,
+  })
+
+  let successMessage = 'Shamba na zao vimehifadhiwa kikamilifu.'
+
+  if (programId !== null && cropForm.tarehe_ya_kupanda) {
+    try {
+      await generateCropProgramSchedules(createdCrop.id)
+    } catch (scheduleError) {
+      successMessage = `Shamba na zao vimehifadhiwa, lakini ratiba hazikuweza kutengenezwa: ${scheduleError.message}`
+    }
+  }
+
+  await loadDashboardData()
+  setMessage(successMessage)
+  setActivePage('dashboard')
+} catch (err) {
+  setError(`Imeshindikana kuhifadhi zao: ${err.message}`)
+} finally {
+  setCropCreating(false)
+}
+
+}
+
 function renderBottomNavigation() {
 return ( <nav className="bottom-navigation">
 <button
@@ -836,7 +996,8 @@ setActivePage('dashboard')
         activePage === 'more' ||
         activePage === 'profit-loss' ||
         activePage === 'reports' ||
-        activePage === 'reminders'
+        activePage === 'reminders' ||
+        activePage === 'new-farm'
           ? 'active'
           : ''
       }`}
@@ -1002,6 +1163,239 @@ if (activePage === 'more') {
           >
             📄 RIPOTI
           </button>
+        </section>
+
+        <section className="today-task">
+          <div className="section-label">
+            🌱 SHAMBA JIPYA
+          </div>
+
+          <button
+            type="button"
+            className="btn-primary auth-button"
+            onClick={openFarmCreation}
+          >
+            ANZISHA SHAMBA JIPYA
+          </button>
+        </section>
+      </main>
+
+      {renderBottomNavigation()}
+    </div>
+  )
+}
+
+if (activePage === 'new-farm') {
+  return (
+    <div className="app">
+      <header className="app-header">
+        <div>
+          <div className="brand">
+            🌱 MKULIMA SMART ASSISTANT
+          </div>
+
+          <p className="welcome">
+            Karibu, {farmer.jina || 'Mkulima'}
+          </p>
+        </div>
+      </header>
+
+      <main className="dashboard">
+        <section className="dashboard-title">
+          <h1>Anzisha Shamba Jipya</h1>
+
+          <p>
+            {farmCreationStep === 'farm'
+              ? 'Weka taarifa za shamba lako.'
+              : 'Weka taarifa za zao litakalolimwa.'}
+          </p>
+        </section>
+
+        <section className="today-task">
+          <div className="section-label">
+            {farmCreationStep === 'farm'
+              ? 'TAARIFA ZA SHAMBA'
+              : 'TAARIFA ZA ZAO'}
+          </div>
+
+          {farmCreationStep === 'farm' ? (
+            <form onSubmit={handleCreateFarm}>
+              <label htmlFor="new-farm-jina">
+                Jina la shamba
+              </label>
+
+              <input
+                id="new-farm-jina"
+                name="jina"
+                type="text"
+                value={farmForm.jina}
+                onChange={handleFarmFormChange}
+                required
+              />
+
+              <label htmlFor="new-farm-eneo">
+                Eneo
+              </label>
+
+              <input
+                id="new-farm-eneo"
+                name="eneo"
+                type="text"
+                value={farmForm.eneo}
+                onChange={handleFarmFormChange}
+                required
+              />
+
+              <label htmlFor="new-farm-ukubwa">
+                Ukubwa
+              </label>
+
+              <input
+                id="new-farm-ukubwa"
+                name="ukubwa"
+                type="number"
+                step="any"
+                value={farmForm.ukubwa}
+                onChange={handleFarmFormChange}
+                required
+              />
+
+              <button
+                type="submit"
+                className="btn-primary auth-button"
+                disabled={farmCreating}
+              >
+                {farmCreating
+                  ? 'INAHIFADHI...'
+                  : 'HIFADHI NA ENDELEA'}
+              </button>
+
+              <button
+                type="button"
+                className="btn-secondary auth-button"
+                onClick={() => {
+                  setError('')
+                  setMessage('')
+                  setActivePage('more')
+                }}
+              >
+                RUDI KWENYE ZAIDI
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleCreateCrop}>
+              <label htmlFor="new-crop-jina">
+                Jina la zao
+              </label>
+
+              <input
+                id="new-crop-jina"
+                name="jina"
+                type="text"
+                value={cropForm.jina}
+                onChange={handleCropFormChange}
+                required
+              />
+
+              <label htmlFor="new-crop-aina">
+                Aina
+              </label>
+
+              <input
+                id="new-crop-aina"
+                name="aina"
+                type="text"
+                value={cropForm.aina}
+                onChange={handleCropFormChange}
+                required
+              />
+
+              <label htmlFor="new-crop-msimu">
+                Msimu
+              </label>
+
+              <input
+                id="new-crop-msimu"
+                name="msimu"
+                type="text"
+                value={cropForm.msimu}
+                onChange={handleCropFormChange}
+                required
+              />
+
+              <label htmlFor="new-crop-tarehe">
+                Tarehe ya kupanda
+              </label>
+
+              <input
+                id="new-crop-tarehe"
+                name="tarehe_ya_kupanda"
+                type="date"
+                value={cropForm.tarehe_ya_kupanda}
+                onChange={handleCropFormChange}
+              />
+
+              <label htmlFor="new-crop-program">
+                Programu ya zao (si lazima)
+              </label>
+
+              <select
+                id="new-crop-program"
+                name="program_id"
+                value={cropForm.program_id}
+                onChange={handleCropFormChange}
+                disabled={cropProgramsLoading}
+              >
+                <option value="">
+                  {cropProgramsLoading
+                    ? 'Inapakia programu...'
+                    : 'Chagua programu (si lazima)'}
+                </option>
+                {cropPrograms.map((program) => (
+                  <option
+                    key={program.id}
+                    value={program.id}
+                  >
+                    {program.jina}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="submit"
+                className="btn-primary auth-button"
+                disabled={cropCreating}
+              >
+                {cropCreating
+                  ? 'INAHIFADHI...'
+                  : 'HIFADHI SHAMBA NA ZAO'}
+              </button>
+
+              <button
+                type="button"
+                className="btn-secondary auth-button"
+                onClick={() => {
+                  setError('')
+                  setMessage('')
+                  setActivePage('more')
+                }}
+              >
+                RUDI KWENYE ZAIDI
+              </button>
+            </form>
+          )}
+
+          {message && (
+            <div className="auth-message">
+              {message}
+            </div>
+          )}
+
+          {error && (
+            <div className="auth-error">
+              {error}
+            </div>
+          )}
         </section>
       </main>
 
@@ -2594,6 +2988,12 @@ return (
           Fuatilia maendeleo ya zao lako na kazi za shamba.
         </p>
       </section>
+
+      {message && (
+        <div className="auth-message">
+          {message}
+        </div>
+      )}
 
       {dashboardLoading && (
         <section className="crop-summary">

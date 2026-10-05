@@ -5,7 +5,7 @@ class FarmCreate(BaseModel):
     jina: str
     eneo: str
     ukubwa: float
-    farmer_id: int
+    farmer_id: int | None = None
 
 
 class FarmResponse(BaseModel):
