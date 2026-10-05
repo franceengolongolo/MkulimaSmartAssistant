@@ -3109,6 +3109,14 @@ return (
                   Ongeza zao lako ili kuanza
                   kufuatilia maendeleo yake.
                 </p>
+
+                <button
+                  type="button"
+                  className="btn-primary auth-button"
+                  onClick={openFarmCreation}
+                >
+                  🌱 ANZISHA SHAMBA JIPYA
+                </button>
               </div>
             </div>
           </div>
