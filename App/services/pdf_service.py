@@ -244,7 +244,7 @@ def generate_crop_pdf(
     farm_data = [
         ["Jina la shamba", farm.jina],
         ["Eneo", farm.eneo],
-        ["Ukubwa", f"{farm.ukubwa}"],
+        ["Ukubwa", f"{farm.ukubwa} Ekari"],
     ]
 
     farm_table = Table(

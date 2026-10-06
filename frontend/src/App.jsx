@@ -1286,7 +1286,7 @@ if (activePage === 'new-farm') {
               />
 
               <label htmlFor="new-farm-ukubwa">
-                Ukubwa
+                Ukubwa wa shamba (Ekari)
               </label>
 
               <input
