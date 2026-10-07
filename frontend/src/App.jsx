@@ -2409,6 +2409,7 @@ if (activePage === 'add-cost') {
               min="0"
               value={costForm.gharama}
               onChange={handleCostChange}
+              onWheel={(event) => event.currentTarget.blur()}
               placeholder="Mfano: 100000"
               required
             />

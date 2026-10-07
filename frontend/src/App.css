@@ -10,6 +10,16 @@
   padding-bottom: 82px;
 }
 
+#gharama {
+  -moz-appearance: textfield;
+}
+
+#gharama::-webkit-inner-spin-button,
+#gharama::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 
 /* =========================================================
    AUTH / LOGIN
