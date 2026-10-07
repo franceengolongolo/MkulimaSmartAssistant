@@ -4,6 +4,9 @@ from sqlalchemy.orm import Session
 from App.database.database import SessionLocal
 from App.database.models.program_task import ProgramTask
 from App.database.models.program_stage import ProgramStage
+from App.database.models.program_rule import ProgramRule
+from App.database.models.program_input import ProgramInput
+from App.database.models.schedule import Schedule
 from App.schemas.program_task import (
     ProgramTaskCreate,
     ProgramTaskResponse
@@ -181,6 +184,33 @@ def delete_program_task(
             status_code=404,
             detail="Program Task haikupatikana"
         )
+
+    db.query(
+        ProgramRule
+    ).filter(
+        ProgramRule.task_id == task_id
+    ).delete(
+        synchronize_session=False
+    )
+
+    db.query(
+        ProgramInput
+    ).filter(
+        ProgramInput.task_id == task_id
+    ).delete(
+        synchronize_session=False
+    )
+
+    db.query(
+        Schedule
+    ).filter(
+        Schedule.program_task_id == task_id
+    ).update(
+        {
+            Schedule.program_task_id: None
+        },
+        synchronize_session=False
+    )
 
     db.delete(task)
     db.commit()

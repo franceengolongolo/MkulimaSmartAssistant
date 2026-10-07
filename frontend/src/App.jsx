@@ -1811,9 +1811,16 @@ if (activePage === 'profit-loss') {
 
                   <p>
                     Hali:{' '}
-                    {profitLoss.hali === 'faida'
+                    {profitLoss.faida_au_hasara > 0
                       ? 'FAIDA'
-                      : 'HASARA'}
+                      : profitLoss.faida_au_hasara < 0
+                        ? 'HASARA'
+                        : profitLoss.jumla_ya_gharama === 0 &&
+                            profitLoss.jumla_ya_mapato === 0
+                          ? 'HAKUNA TAARIFA'
+                          : profitLoss.hali === 'faida'
+                            ? 'FAIDA'
+                            : 'HASARA'}
                   </p>
                 </div>
               </div>
@@ -2113,9 +2120,16 @@ if (activePage === 'reports') {
 
                   <p>
                     Hali:{' '}
-                    {profitLoss.hali === 'faida'
+                    {profitLoss.faida_au_hasara > 0
                       ? 'FAIDA'
-                      : 'HASARA'}
+                      : profitLoss.faida_au_hasara < 0
+                        ? 'HASARA'
+                        : profitLoss.jumla_ya_gharama === 0 &&
+                            profitLoss.jumla_ya_mapato === 0
+                          ? 'HAKUNA TAARIFA'
+                          : profitLoss.hali === 'faida'
+                            ? 'FAIDA'
+                            : 'HASARA'}
                   </p>
                 </>
               )}
